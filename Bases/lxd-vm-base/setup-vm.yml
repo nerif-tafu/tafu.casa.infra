@@ -1,0 +1,116 @@
+---
+- name: Setup new VM
+  hosts: "{{ vm_name }}"
+  become: true
+  vars:
+    node_version: "22"
+
+  tasks:
+    - name: Install initial prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Add repositories
+      block:
+        - name: Create keyrings directory
+          file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: '0755'
+
+        - name: Add Docker repository and GPG key
+          shell: |
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sh get-docker.sh
+            rm get-docker.sh
+          args:
+            creates: /etc/apt/sources.list.d/docker.list
+
+        - name: Add NodeSource repository
+          shell: |
+            curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
+          args:
+            creates: /etc/apt/sources.list.d/nodesource.list
+
+        - name: Add GitHub CLI GPG key
+          apt_key:
+            url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+            keyring: /usr/share/keyrings/githubcli-archive-keyring.gpg
+            state: present
+
+        - name: Add GitHub CLI repository
+          apt_repository:
+            repo: "deb [arch={{ ansible_architecture }} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+            state: present
+            filename: github-cli
+            update_cache: no
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install all packages
+      apt:
+        name:
+          # Basic tools
+          - curl
+          - jq
+          - git
+          - tmux
+          - screen
+          # Node.js
+          - nodejs
+          # GitHub CLI
+          - gh
+          # Docker packages
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Configure Docker
+      block:
+        - name: Start and enable Docker service
+          systemd:
+            name: docker
+            state: started
+            enabled: yes
+
+        - name: Add finn-rm to docker group
+          user:
+            name: finn-rm
+            groups: docker
+            append: yes
+
+        - name: Configure Docker logging
+          copy:
+            dest: /etc/docker/daemon.json
+            content: |
+              {
+                "log-driver": "json-file",
+                "log-opts": {
+                  "max-size": "10m",
+                  "max-file": "3"
+                }
+              }
+          notify: Restart Docker
+
+    - name: Clone infrastructure repository
+      git:
+        repo: https://github.com/nerif-tafu/tafu.casa.infra.git
+        dest: /home/finn-rm/tafu.casa.infra
+      become: yes
+      become_user: finn-rm
+
+  handlers:
+    - name: Restart Docker
+      systemd:
+        name: docker
+        state: restarted 

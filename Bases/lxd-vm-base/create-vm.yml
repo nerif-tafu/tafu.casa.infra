@@ -51,9 +51,32 @@
         msg: "VM name must be provided either via --extra-vars or interactive prompt"
       when: not vm_name
 
+    - name: Get list of all LXD profiles
+      shell: "lxc profile list --format csv | cut -d',' -f1"
+      register: all_profiles
+      changed_when: false
+
+    - name: Get list of all VMs
+      shell: "lxc list --format csv | cut -d',' -f1"
+      register: all_vms
+      changed_when: false
+
+    - name: Clean up orphaned VM profiles
+      shell: "lxc profile delete {{ item }}"
+      when: 
+        - item.endswith('-profile')
+        - item[:-8] not in all_vms.stdout_lines
+      with_items: "{{ all_profiles.stdout_lines }}"
+      ignore_errors: yes
+      changed_when: true
+
+    - name: Generate unique profile name
+      set_fact:
+        profile_name: "{{ vm_name }}-profile{% if vm_name + '-profile' in all_profiles.stdout_lines %}-{{ 100 | random }}{% endif %}"
+
     - name: Create VM profile
       shell: |
-        cat <<EOF | lxc profile create {{ vm_name }}-profile
+        cat <<EOF | lxc profile create {{ profile_name }}
         config:
           limits.cpu: "{{ cpu_cores }}"
           limits.memory: "{{ memory_gb }}GB"
@@ -80,43 +103,80 @@
       register: profile_creation
 
     - name: Create VM
-      shell: |
-        lxc launch ubuntu:24.04 {{ vm_name }} \
-          --profile {{ vm_name }}-profile \
-          --vm \
-          -c user.user-data="$(cat lxd-vm-base.yaml)"
-      args:
-        executable: /bin/bash
+      community.general.lxd_container:
+        name: "{{ vm_name }}"
+        state: started
+        source:
+          type: image
+          mode: pull
+          server: https://cloud-images.ubuntu.com/releases/
+          protocol: simplestreams
+          alias: "24.04"
+        profiles: ["{{ profile_name }}"]
+        type: virtual-machine
+        wait_for_ipv4_addresses: true
+        timeout: 600
+        ignore_volatile_options: true
+        config:
+          user.user-data: "{{ lookup('file', 'lxd-vm-base.yaml') }}"
       register: vm_creation
-      failed_when: vm_creation.rc != 0
-      ignore_errors: yes
 
     - name: Clean up profile on failure
-      shell: "lxc profile delete {{ vm_name }}-profile"
-      when: vm_creation.rc != 0
-      args:
-        executable: /bin/bash
-
-    - name: Fail if VM creation failed
-      fail:
-        msg: "Failed to create VM: {{ vm_creation.stderr }}"
-      when: vm_creation.rc != 0
+      community.general.lxd_profile:
+        name: "{{ profile_name }}"
+        state: absent
+      when: vm_creation is failed
 
     - name: Wait for cloud-init to complete
-      command: lxc exec {{ vm_name }} -- cloud-init status --wait
+      shell: lxc exec {{ vm_name }} -- cloud-init status --wait
       register: cloud_init_status
-      until: cloud_init_status.rc == 0
+      until: "'status: done' in cloud_init_status.stdout"
       retries: 30
       delay: 10
-
-    - name: Show VM IP address
-      command: lxc list {{ vm_name }} -c 4
-      register: vm_ip
       changed_when: false
+      ignore_errors: true
 
-    - name: Display connection information
+    - name: Verify cloud-init completed successfully
+      fail:
+        msg: "Cloud-init failed to complete successfully"
+      when: "'status: done' not in cloud_init_status.stdout"
+
+    - name: Get VM IP address
+      set_fact:
+        vm_ip: "{{ vm_creation.addresses[vm_creation.addresses.keys() | first][0] }}"
+      when: vm_creation.addresses is defined
+
+    - name: Clean up all orphaned profiles for this VM
+      community.general.lxd_profile:
+        name: "{{ item }}"
+        state: absent
+      when: 
+        - item.startswith(vm_name + '-profile-') or item == vm_name + '-profile'
+        - item != profile_name
+      with_items: "{{ all_profiles.stdout_lines }}"
+      ignore_errors: yes
+
+    - name: Display final connection information
       debug:
         msg:
           - "VM {{ vm_name }} is ready!"
           - "Connect using: lxc exec {{ vm_name }} bash"
-          - "Or via SSH once you get its IP address from: lxc list {{ vm_name }}" 
+          - "SSH using: ssh finn-rm@{{ vm_ip }}"
+      when: vm_creation.addresses is defined
+
+    - name: Wait for SSH to be available
+      wait_for:
+        host: "{{ vm_ip }}"
+        port: 22
+        timeout: 60
+        sleep: 5
+
+    - name: Add VM to inventory
+      add_host:
+        name: "{{ vm_name }}"
+        ansible_host: "{{ vm_ip }}"
+        ansible_user: finn-rm
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+- name: Run setup playbook
+  import_playbook: setup-vm.yml 

@@ -12,13 +12,13 @@ Infrastructure setup and templates for tafu.casa services.
 
 1. Install requirements:
 ```bash
-    sudo apt install ansible
-    ansible-galaxy collection install community.general
+sudo apt install ansible
+ansible-galaxy collection install community.general
 ```
 
 2. Run bootstrap:
 ```bash
-    ansible-playbook -i localhost, Bases/lxd-vm-base/bootstrap.yml
+ansible-playbook -i localhost, Bases/lxd-vm-base/bootstrap.yml
 ```
 
 3. Create VMs using one of these methods:

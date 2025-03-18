@@ -1,12 +1,16 @@
 #cloud-config
-apt_mirror: http://us.archive.ubuntu.com/ubuntu/
 users:
   - name: finn-rm
-    shell: /bin/bash
     sudo: ALL=(ALL) NOPASSWD:ALL
-    groups: sudo,docker
+    shell: /bin/bash
     ssh_import_id:
       - lp:finn-rm
-growpart:
-  mode: auto
-  devices: ['/'] 
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ssh-import-id
+  - python3
+
+final_message: "The system is ready for Ansible configuration, after $UPTIME seconds" 
