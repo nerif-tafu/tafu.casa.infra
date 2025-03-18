@@ -33,6 +33,19 @@
       become_user: "{{ username }}"
       command: ssh-import-id-lp finn-rm
 
+    # Remove ubuntu user (add this after SSH key import to ensure we have access)
+    - name: Check if ubuntu user exists
+      command: id ubuntu
+      register: ubuntu_exists
+      ignore_errors: yes
+
+    - name: Remove ubuntu user and home directory
+      user:
+        name: ubuntu
+        state: absent
+        remove: yes
+      when: ubuntu_exists.rc == 0
+
     # System updates
     - name: Update apt cache
       apt:
