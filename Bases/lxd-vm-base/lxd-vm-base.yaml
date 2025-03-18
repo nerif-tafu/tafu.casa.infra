@@ -1,0 +1,12 @@
+#cloud-config
+apt_mirror: http://us.archive.ubuntu.com/ubuntu/
+users:
+  - name: finn-rm
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: sudo,docker
+    ssh_import_id:
+      - lp:finn-rm
+growpart:
+  mode: auto
+  devices: ['/'] 
