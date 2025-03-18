@@ -11,26 +11,30 @@ Infrastructure setup and templates for tafu.casa services.
 ## LXD Host Setup
 
 1. Install requirements:
+```bash
     sudo apt install ansible
     ansible-galaxy collection install community.general
+```
 
 2. Run bootstrap:
+```bash
     ansible-playbook -i localhost, Bases/lxd-vm-base/bootstrap.yml
+```
 
 3. Create VMs using one of these methods:
 
     a. Interactive mode (prompts for all values):
-    ```
+    ```bash
     ansible-playbook -i localhost, Bases/lxd-vm-base/create-vm.yml
     ```
 
     b. Fully automated with command line:
-    ```
+    ```bash
     ansible-playbook -i localhost, Bases/lxd-vm-base/create-vm.yml -e "vm_name=test-vm cpu_cores=4 memory_gb=8 disk_gb=50 interactive=false"
     ```
 
     c. Using a vars file (create vm-vars.yml):
-    ```
+    ```bash
     # Example vm-vars.yml contents:
     # vm_name: test-vm
     # cpu_cores: 4
@@ -39,11 +43,11 @@ Infrastructure setup and templates for tafu.casa services.
     # interactive: false
     ```
     
-    ```
+    ```bash
     ansible-playbook -i localhost, Bases/lxd-vm-base/create-vm.yml -e "@vm-vars.yml"
     ```
 
     d. Mix and match (specify some vars, prompt for others):
-    ```
+    ```bash
     ansible-playbook -i localhost, Bases/lxd-vm-base/create-vm.yml -e "vm_name=test-vm cpu_cores=4"
     ```
