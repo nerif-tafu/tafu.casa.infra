@@ -1,0 +1,122 @@
+---
+- name: Create LXD VM
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    # Default values
+    vm_name: ""
+    cpu_cores: "2"
+    memory_gb: "4"
+    disk_gb: "100"
+    interactive: true  # Set to false to skip prompts
+
+  tasks:
+    - name: Prompt for VM details
+      when: interactive|bool
+      block:
+        - name: Ask for VM name
+          pause:
+            prompt: "Enter VM name"
+          register: vm_name_input
+          when: not vm_name
+
+        - name: Ask for CPU cores
+          pause:
+            prompt: "Enter number of CPU cores (default 2)"
+          register: cpu_cores_input
+          when: not cpu_cores
+
+        - name: Ask for memory
+          pause:
+            prompt: "Enter memory in GB (default 4)"
+          register: memory_gb_input
+          when: not memory_gb
+
+        - name: Ask for disk size
+          pause:
+            prompt: "Enter disk size in GB (default 100)"
+          register: disk_gb_input
+          when: not disk_gb
+
+    - name: Set final values
+      set_fact:
+        vm_name: "{{ vm_name or vm_name_input.user_input }}"
+        cpu_cores: "{{ cpu_cores or cpu_cores_input.user_input or '2' }}"
+        memory_gb: "{{ memory_gb or memory_gb_input.user_input or '4' }}"
+        disk_gb: "{{ disk_gb or disk_gb_input.user_input or '100' }}"
+
+    - name: Fail if VM name is not provided
+      fail:
+        msg: "VM name must be provided either via --extra-vars or interactive prompt"
+      when: not vm_name
+
+    - name: Create VM profile
+      shell: |
+        cat <<EOF | lxc profile create {{ vm_name }}-profile
+        config:
+          limits.cpu: "{{ cpu_cores }}"
+          limits.memory: "{{ memory_gb }}GB"
+          security.nesting: "true"
+          security.syscalls.intercept.mknod: "true"
+          security.syscalls.intercept.setxattr: "true"
+        description: Custom VM profile for {{ vm_name }}
+        devices:
+          config:
+            type: disk
+            source: cloud-init:config
+          eth0:
+            type: nic
+            name: eth0
+            network: macvlan
+          root:
+            type: disk
+            path: /
+            pool: default
+            size: {{ disk_gb }}GB
+        EOF
+      args:
+        executable: /bin/bash
+      register: profile_creation
+
+    - name: Create VM
+      shell: |
+        lxc launch ubuntu:24.04 {{ vm_name }} \
+          --profile {{ vm_name }}-profile \
+          --vm \
+          -c user.user-data="$(cat lxd-vm-base.yaml)"
+      args:
+        executable: /bin/bash
+      register: vm_creation
+      failed_when: vm_creation.rc != 0
+      ignore_errors: yes
+
+    - name: Clean up profile on failure
+      shell: "lxc profile delete {{ vm_name }}-profile"
+      when: vm_creation.rc != 0
+      args:
+        executable: /bin/bash
+
+    - name: Fail if VM creation failed
+      fail:
+        msg: "Failed to create VM: {{ vm_creation.stderr }}"
+      when: vm_creation.rc != 0
+
+    - name: Wait for cloud-init to complete
+      command: lxc exec {{ vm_name }} -- cloud-init status --wait
+      register: cloud_init_status
+      until: cloud_init_status.rc == 0
+      retries: 30
+      delay: 10
+
+    - name: Show VM IP address
+      command: lxc list {{ vm_name }} -c 4
+      register: vm_ip
+      changed_when: false
+
+    - name: Display connection information
+      debug:
+        msg:
+          - "VM {{ vm_name }} is ready!"
+          - "Connect using: lxc exec {{ vm_name }} bash"
+          - "Or via SSH once you get its IP address from: lxc list {{ vm_name }}" 

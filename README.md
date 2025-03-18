@@ -10,51 +10,40 @@ Infrastructure setup and templates for tafu.casa services.
 
 ## LXD Host Setup
 
-### 1. Bootstrap LXD Host
-First, set up the LXD host with btrfs storage and macvlan networking:
+1. Install requirements:
+    sudo apt install ansible
+    ansible-galaxy collection install community.general
 
-    sudo ./Bases/lxd-vm-base/bootstrap.sh
+2. Run bootstrap:
+    ansible-playbook -i localhost, Bases/lxd-vm-base/bootstrap.yml
 
-### 2. Create a VM
-Create a new VM with custom specifications:
+3. Create VMs using one of these methods:
 
-    sudo ./Bases/lxd-vm-base/create-vm.sh
+    a. Interactive mode (prompts for all values):
+    ```
+    ansible-playbook -i localhost, Bases/lxd-vm-base/create-vm.yml
+    ```
 
-You'll be prompted for:
-- VM name
-- Number of CPU cores
-- Memory size (GB)
-- Disk size (GB)
+    b. Fully automated with command line:
+    ```
+    ansible-playbook -i localhost, Bases/lxd-vm-base/create-vm.yml -e "vm_name=test-vm cpu_cores=4 memory_gb=8 disk_gb=50 interactive=false"
+    ```
 
-The VM will be created with:
-- Ubuntu 24.04
-- finn-rm user with sudo access
-- SSH key imported from Launchpad
-- Direct network access via macvlan
-- Nested virtualization support
-- Docker-compatible syscall handling
+    c. Using a vars file (create vm-vars.yml):
+    ```
+    # Example vm-vars.yml contents:
+    # vm_name: test-vm
+    # cpu_cores: 4
+    # memory_gb: 8
+    # disk_gb: 50
+    # interactive: false
+    ```
+    
+    ```
+    ansible-playbook -i localhost, Bases/lxd-vm-base/create-vm.yml -e "@vm-vars.yml"
+    ```
 
-### 3. Connect to your VM
-
-    # Get VM IP address
-    lxc list
-
-    # SSH into the VM
-    ssh finn-rm@<vm-ip>
-
-## Service Example: Demo App
-
-The demo app in Services/demo-app-service shows a basic setup with:
-- Frontend server (port 9000)
-- Backend API (port 9001)
-- Traefik reverse proxy (ports 443 and 8080)
-
-To deploy the demo app:
-
-    cd Services/demo-app-service
-    docker compose up -d
-
-Access the services at:
-- Frontend: http://<vm-ip>/
-- Backend API: http://<vm-ip>/api/health
-- Traefik Dashboard: http://<vm-ip>:8080
+    d. Mix and match (specify some vars, prompt for others):
+    ```
+    ansible-playbook -i localhost, Bases/lxd-vm-base/create-vm.yml -e "vm_name=test-vm cpu_cores=4"
+    ```

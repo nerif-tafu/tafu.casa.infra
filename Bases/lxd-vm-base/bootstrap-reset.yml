@@ -1,0 +1,92 @@
+---
+- name: Reset LXD Bootstrap
+  hosts: localhost
+  connection: local
+  become: true
+  
+  tasks:
+    - name: Warning prompt
+      pause:
+        prompt: |
+          
+          WARNING: This will delete all:
+          - LXD VMs and their data
+          - Custom profiles
+          - Custom networks
+          - Storage pools
+          - LXD installation
+          
+          Press Enter to continue or Ctrl+C to abort
+
+    - name: Get list of all VMs
+      shell: lxc list --format csv --columns n
+      register: vm_list
+      changed_when: false
+
+    - name: Stop all VMs
+      shell: "lxc stop {{ item }} --force"
+      with_items: "{{ vm_list.stdout_lines }}"
+      when: vm_list.stdout != ""
+      ignore_errors: true
+
+    - name: Delete all VMs
+      shell: "lxc delete {{ item }} --force"
+      with_items: "{{ vm_list.stdout_lines }}"
+      when: vm_list.stdout != ""
+      ignore_errors: true
+
+    - name: Get list of all profiles
+      shell: lxc profile list --format csv | cut -d',' -f1 | grep -v default
+      register: profile_list
+      changed_when: false
+
+    - name: Delete all custom profiles
+      shell: "lxc profile delete {{ item }}"
+      with_items: "{{ profile_list.stdout_lines }}"
+      when: profile_list.stdout != ""
+      ignore_errors: true
+
+    - name: Get list of all networks
+      shell: lxc network list --format csv | cut -d',' -f1 | grep -v 'lo\|eth\|docker\|lxdbr0'
+      register: network_list
+      changed_when: false
+
+    - name: Delete all custom networks
+      shell: "lxc network delete {{ item }}"
+      with_items: "{{ network_list.stdout_lines }}"
+      when: network_list.stdout != ""
+      ignore_errors: true
+
+    - name: Get list of all storage pools
+      shell: lxc storage list --format csv | cut -d',' -f1
+      register: storage_list
+      changed_when: false
+
+    - name: Delete all storage pools
+      shell: "lxc storage delete {{ item }}"
+      with_items: "{{ storage_list.stdout_lines }}"
+      when: storage_list.stdout != ""
+      ignore_errors: true
+
+    - name: Stop LXD daemon
+      systemd:
+        name: snap.lxd.daemon
+        state: stopped
+      ignore_errors: true
+
+    - name: Remove LXD data directory
+      file:
+        path: /var/lib/lxd
+        state: absent
+
+    - name: Remove LXD snap
+      community.general.snap:
+        name: lxd
+        state: absent
+      ignore_errors: true
+
+    - name: Display completion message
+      debug:
+        msg: 
+          - "LXD environment has been reset"
+          - "Run bootstrap.yml again to set up a fresh environment" 

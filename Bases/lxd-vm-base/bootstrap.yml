@@ -1,0 +1,205 @@
+---
+- name: Bootstrap LXD Host
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    storage_path: /var/lib/lxd
+  
+  tasks:
+    - name: Install cpu-checker
+      apt:
+        name: cpu-checker
+        state: present
+        update_cache: yes
+
+    - name: Check KVM support
+      command: /usr/sbin/kvm-ok
+      register: kvm_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Fail if KVM is not available
+      fail:
+        msg: |
+          KVM virtualization is not available on this host.
+          Please ensure:
+          1. Virtualization is enabled in BIOS/UEFI
+          2. The host supports hardware virtualization
+          3. Kernel modules for KVM are loaded
+          
+          KVM check output:
+          {{ kvm_check.stderr if kvm_check.stderr is defined else kvm_check.stdout }}
+      when: kvm_check.rc != 0
+
+    - name: Install required packages
+      apt:
+        name:
+          - ssh-import-id
+        state: present
+        update_cache: yes
+
+    - name: Create finn-rm user
+      user:
+        name: finn-rm
+        shell: /bin/bash
+        groups: sudo
+        append: yes
+
+    - name: Import SSH key for finn-rm
+      command: ssh-import-id lp:finn-rm
+      become: yes
+      become_user: finn-rm
+      args:
+        creates: /home/finn-rm/.ssh/authorized_keys
+
+    - name: Setup passwordless sudo for finn-rm
+      copy:
+        dest: /etc/sudoers.d/finn-rm
+        content: "finn-rm ALL=(ALL) NOPASSWD:ALL"
+        mode: 0440
+        validate: /usr/sbin/visudo -cf %s
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Get network interface details
+      shell: |
+        echo "Available Network Interfaces:"
+        echo "----------------------------"
+        for iface in $(ip -o link show | grep -v 'lo:' | awk -F': ' '{print $2}'); do
+          echo "Interface: $iface"
+          echo "Status: $(ip link show $iface | grep -o "state [A-Z]* " | cut -d' ' -f2)"
+          ip -4 addr show $iface 2>/dev/null | grep -w inet | awk '{printf "IPv4: %s\n", $2}'
+          ip -6 addr show $iface 2>/dev/null | grep -w inet6 | awk '{printf "IPv6: %s\n", $2}'
+          echo ""
+        done
+      register: interface_details
+      changed_when: false
+
+    - name: Select network interface
+      pause:
+        prompt: |
+          {{ interface_details.stdout }}
+          Which interface should macvlan use?
+          Press Enter for default ({{ ansible_default_ipv4.interface }}) or type interface name
+      register: interface_input
+
+    - name: Set selected interface
+      set_fact:
+        selected_interface: "{{ interface_input.user_input | default(ansible_default_ipv4.interface) }}"
+
+    - name: Verify selected interface exists
+      shell: "ip link show {{ selected_interface }}"
+      register: interface_check
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if interface doesn't exist
+      fail:
+        msg: "Selected interface '{{ selected_interface }}' does not exist"
+      when: interface_check.rc != 0
+
+    - name: Install LXD snap
+      community.general.snap:
+        name: lxd
+        state: present
+
+    - name: Check if LXD is initialized
+      command: lxc storage list
+      register: storage_list
+      failed_when: false
+      changed_when: false
+
+    - name: Initialize LXD
+      when: storage_list.rc != 0
+      shell: |
+        cat <<EOF | lxd init --preseed
+        config:
+          core.https_address: '[::]:8443'
+          core.trust_password: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+        networks:
+        - config:
+            ipv4.address: auto
+            ipv6.address: auto
+          description: ""
+          name: lxdbr0
+          type: bridge
+        storage_pools:
+        - config:
+            source: "{{ storage_path }}"
+          description: ""
+          name: default
+          driver: btrfs
+        profiles:
+        - config: {}
+          description: ""
+          devices:
+            eth0:
+              name: eth0
+              network: lxdbr0
+              type: nic
+            root:
+              path: /
+              pool: default
+              type: disk
+          name: default
+        EOF
+      args:
+        executable: /bin/bash
+
+    - name: Check if macvlan network exists
+      command: lxc network show macvlan
+      register: macvlan_check
+      failed_when: false
+      changed_when: false
+
+    - name: Create macvlan network
+      when: macvlan_check.rc != 0
+      shell: |
+        cat <<EOF | lxc network create macvlan
+        name: macvlan
+        type: macvlan
+        description: Macvlan network for VMs
+        config:
+          parent: {{ selected_interface }}
+        EOF
+      args:
+        executable: /bin/bash
+
+    - name: Check if VM profile exists
+      command: lxc profile show vm
+      register: vm_profile_check
+      failed_when: false
+      changed_when: false
+
+    - name: Create VM profile
+      when: vm_profile_check.rc != 0
+      shell: |
+        cat <<EOF | lxc profile create vm
+        config:
+          limits.cpu: "2"
+          limits.memory: "4GB"
+          security.nesting: "true"
+          security.syscalls.intercept.mknod: "true"
+          security.syscalls.intercept.setxattr: "true"
+        description: Default VM profile with Docker support
+        devices:
+          config:
+            type: disk
+            source: cloud-init:config
+          eth0:
+            type: nic
+            name: eth0
+            network: macvlan
+          root:
+            type: disk
+            path: /
+            pool: default
+            size: 100GB
+        EOF
+      args:
+        executable: /bin/bash 
