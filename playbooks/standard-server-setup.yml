@@ -1,0 +1,130 @@
+---
+- name: Setup Core and Runner Templates
+  hosts: all
+  become: yes
+  vars:
+    username: finn-rm
+    node_version: 20
+
+  tasks:
+    # Create finn-rm user with sudo access
+    - name: Create finn-rm user
+      user:
+        name: "{{ username }}"
+        shell: /bin/bash
+        groups: sudo
+        append: yes
+
+    - name: Set up passwordless sudo for finn-rm
+      lineinfile:
+        path: /etc/sudoers.d/finn-rm
+        line: "finn-rm ALL=(ALL) NOPASSWD:ALL"
+        create: yes
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
+    # Import SSH key
+    - name: Install ssh-import-id
+      apt:
+        name: ssh-import-id
+        state: present
+
+    - name: Import SSH key for finn-rm
+      become_user: "{{ username }}"
+      command: ssh-import-id-lp finn-rm
+
+    # System updates
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Upgrade system packages
+      apt:
+        upgrade: full
+
+    # Install Node.js and npm
+    - name: Install Node.js prerequisites
+      apt:
+        name: 
+          - curl
+          - ca-certificates
+          - gnupg
+
+    - name: Add NodeSource repository
+      shell: |
+        curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+
+    # Install Docker
+    - name: Install Docker prerequisites
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg-agent
+          - software-properties-common
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add finn-rm to docker group
+      user:
+        name: "{{ username }}"
+        groups: docker
+        append: yes
+
+    # Install screen and tmux
+    - name: Install screen and tmux
+      apt:
+        name:
+          - screen
+          - tmux
+        state: present
+
+    # Setup aliases
+    - name: Create aliases file
+      template:
+        src: templates/aliases.sh.j2
+        dest: /home/{{ username }}/.bash_aliases
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0644'
+
+    - name: Ensure .bashrc sources .bash_aliases
+      lineinfile:
+        path: /home/{{ username }}/.bashrc
+        line: '[ -f ~/.bash_aliases ] && . ~/.bash_aliases'
+        create: yes
+        owner: "{{ username }}"
+        group: "{{ username }}" 
