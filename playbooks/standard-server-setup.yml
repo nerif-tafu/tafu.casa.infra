@@ -7,6 +7,15 @@
     node_version: 22
 
   tasks:
+    # System updates
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Upgrade system packages
+      apt:
+        upgrade: full
+
     # Create finn-rm user with sudo access
     - name: Create finn-rm user
       user:
@@ -45,15 +54,6 @@
         state: absent
         remove: yes
       when: ubuntu_exists.rc == 0
-
-    # System updates
-    - name: Update apt cache
-      apt:
-        update_cache: yes
-
-    - name: Upgrade system packages
-      apt:
-        upgrade: full
 
     # Install Node.js and npm
     - name: Install Node.js prerequisites
@@ -177,4 +177,42 @@
         line: '[ -f ~/.bash_aliases ] && . ~/.bash_aliases'
         create: yes
         owner: "{{ username }}"
-        group: "{{ username }}" 
+        group: "{{ username }}"
+
+    # Handle ubuntu user removal safely
+    - name: Create cleanup script
+      copy:
+        dest: /root/cleanup-ubuntu.sh
+        mode: '0700'
+        content: |
+          #!/bin/bash
+          # Wait for the SSH session to end
+          while pgrep -u ubuntu sshd > /dev/null; do
+            sleep 1
+          done
+          # Remove ubuntu user and home directory
+          deluser --remove-home ubuntu
+
+    - name: Setup cleanup service
+      copy:
+        dest: /etc/systemd/system/cleanup-ubuntu.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=Remove ubuntu user after SSH session ends
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/root/cleanup-ubuntu.sh
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Start cleanup service
+      systemd:
+        name: cleanup-ubuntu
+        state: started
+        enabled: yes
+        daemon_reload: yes
+      when: ubuntu_exists.rc == 0 
