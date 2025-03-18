@@ -68,8 +68,8 @@ if ! lxc network show macvlan >/dev/null 2>&1; then
     MAIN_IF=$(ip route | grep default | awk '{print $5}')
     
     lxc network create macvlan \
-        --type=macvlan \
-        --parent="${MAIN_IF}"
+        type=macvlan \
+        parent="${MAIN_IF}"
 fi
 
 echo "LXD host setup complete with btrfs storage and macvlan network!" 
