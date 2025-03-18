@@ -25,6 +25,9 @@ cat <<EOF | lxc profile create "${VM_NAME}"
 config:
   limits.cpu: "${CPU_CORES}"
   limits.memory: "${MEMORY_GB}GB"
+  security.nesting: "true"
+  security.syscalls.intercept.mknod: "true"
+  security.syscalls.intercept.setxattr: "true"
 description: Custom server profile for ${VM_NAME}
 devices:
   config:

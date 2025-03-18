@@ -18,7 +18,7 @@ First, set up the LXD host with btrfs storage and macvlan networking:
 ### 2. Create a VM
 Create a new VM with custom specifications:
 
-    sudo ./Bases/lxd-vm-base/create-vm
+    sudo ./Bases/lxd-vm-base/create-vm.sh
 
 You'll be prompted for:
 - VM name
@@ -31,6 +31,8 @@ The VM will be created with:
 - finn-rm user with sudo access
 - SSH key imported from Launchpad
 - Direct network access via macvlan
+- Nested virtualization support
+- Docker-compatible syscall handling
 
 ### 3. Connect to your VM
 
