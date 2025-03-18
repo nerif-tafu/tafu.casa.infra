@@ -65,11 +65,14 @@ fi
 # Setup macvlan network if not exists
 if ! lxc network show macvlan >/dev/null 2>&1; then
     # Get the main interface
-    MAIN_IF=$(ip route | grep default | awk '{print $5}')
+    MAIN_IF=$(ip route | grep default | awk '{print $5}' | head -n1)  # Take first default interface
     
-    lxc network create macvlan \
-        type=macvlan \
-        parent="${MAIN_IF}"
+    cat <<EOF | lxc network create macvlan
+name: macvlan
+type: macvlan
+config:
+  parent: ${MAIN_IF}
+EOF
 fi
 
 echo "LXD host setup complete with btrfs storage and macvlan network!" 
