@@ -4,7 +4,7 @@
   become: yes
   vars:
     username: finn-rm
-    node_version: 20
+    node_version: 22
 
   tasks:
     # Create finn-rm user with sudo access
