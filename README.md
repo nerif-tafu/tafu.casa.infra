@@ -8,7 +8,7 @@ sudo apt update && sudo apt install -y curl jq
 
 Then run:
 ```bash
-curl -s https://raw.githubusercontent.com/finn-rm/tafu.casa.infra/main/scripts/setup.sh | sudo bash -s -- $(curl -s https://api.github.com/repos/finn-rm/tafu.casa.infra/contents/playbooks/standard-server-setup.yml | jq -r '.download_url')
+curl -s https://raw.githubusercontent.com/nerif-tafu/tafu.casa.infra/main/scripts/setup.sh | sudo bash -s -- $(curl -s https://api.github.com/repos/nerif-tafu/tafu.casa.infra/contents/playbooks/standard-server-setup.yml | jq -r '.download_url')
 ```
 
 ## Demo App
