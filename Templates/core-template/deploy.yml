@@ -28,40 +28,41 @@
         mode: '0755'
 
     - name: Copy docker-compose.yml
-      copy:
+      template:
         src: docker-compose.yml
         dest: /opt/core-traefik/docker-compose.yml
         mode: '0644'
 
     - name: Copy traefik config
-      copy:
+      template:
         src: traefik/traefik.yml
         dest: /opt/core-traefik/traefik/traefik.yml
         mode: '0644'
 
-    - name: Copy dynamic configurations
-      copy:
-        src: traefik/dynamic/
-        dest: /opt/core-traefik/traefik/dynamic/
-        mode: '0644'
-        directory_mode: '0755'
-
-    - name: Copy registry script
+    - name: Copy registry files
       copy:
         src: registry/
         dest: /opt/core-traefik/registry/
+        mode: '0644'
+
+    - name: Make registry.py executable
+      file:
+        path: /opt/core-traefik/registry/registry.py
         mode: '0755'
 
-    - name: Check if traefik-public network exists
+    - name: Remove static config files (if any)
+      file:
+        path: "/opt/core-traefik/traefik/dynamic/default.yml"
+        state: absent
+
+    - name: Check if traefik network exists
       command: docker network inspect traefik-public
       register: network_check
       failed_when: false
 
-    - name: Create traefik-public network if it doesn't exist
+    - name: Create traefik network if it doesn't exist
       command: docker network create traefik-public
       when: network_check.rc != 0
-      register: network_created
-      failed_when: network_created.rc != 0 and "already exists" not in network_created.stderr
 
     - name: Deploy Core Traefik
       shell: |
