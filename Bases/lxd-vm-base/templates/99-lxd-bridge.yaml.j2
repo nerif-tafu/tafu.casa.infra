@@ -1,0 +1,16 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    "{{ selected_interface }}":
+      dhcp4: no
+      dhcp6: no
+  bridges:
+    br0:
+      interfaces: ["{{ selected_interface }}"]
+      dhcp4: true
+      dhcp6: no
+      mtu: 1500
+      parameters:
+        stp: true
+        forward-delay: 4

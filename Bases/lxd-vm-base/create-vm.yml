@@ -91,7 +91,8 @@
           eth0:
             type: nic
             name: eth0
-            network: macvlan
+            nictype: bridged
+            parent: br0
           root:
             type: disk
             path: /

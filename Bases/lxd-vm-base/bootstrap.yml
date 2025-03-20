@@ -90,7 +90,7 @@
 
     - name: Set selected interface
       set_fact:
-        selected_interface: "{{ interface_input.user_input | default(ansible_default_ipv4.interface) }}"
+        selected_interface: "{{ interface_input.user_input | default(ansible_default_ipv4.interface, true) }}"
 
     - name: Verify selected interface exists
       shell: "ip link show {{ selected_interface }}"
@@ -121,13 +121,7 @@
         config:
           core.https_address: '[::]:8443'
           core.trust_password: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
-        networks:
-        - config:
-            ipv4.address: auto
-            ipv6.address: auto
-          description: ""
-          name: lxdbr0
-          type: bridge
+        networks: []
         storage_pools:
         - config:
             source: "{{ storage_path }}"
@@ -140,7 +134,8 @@
           devices:
             eth0:
               name: eth0
-              network: lxdbr0
+              nictype: bridged
+              parent: br0
               type: nic
             root:
               path: /
@@ -151,24 +146,43 @@
       args:
         executable: /bin/bash
 
-    - name: Check if macvlan network exists
-      command: lxc network show macvlan
-      register: macvlan_check
-      failed_when: false
-      changed_when: false
+    - name: Create templates directory
+      file:
+        path: "{{ playbook_dir }}/templates"
+        state: directory
+        mode: '0755'
 
-    - name: Create macvlan network
-      when: macvlan_check.rc != 0
+    - name: Create netplan configuration
+      copy:
+        dest: /etc/netplan/99-lxd-bridge.yaml
+        mode: '0600'
+        content: |
+          network:
+            version: 2
+            renderer: networkd
+            ethernets:
+              {{ selected_interface }}:
+                dhcp4: false
+                dhcp6: false
+            bridges:
+              br0:
+                interfaces: [{{ selected_interface }}]
+                dhcp4: true
+                dhcp6: false
+                mtu: 1500
+                parameters:
+                  stp: true
+                  forward-delay: 4
+
+    - name: Apply netplan configuration
       shell: |
-        cat <<EOF | lxc network create macvlan
-        name: macvlan
-        type: macvlan
-        description: Macvlan network for VMs
-        config:
-          parent: {{ selected_interface }}
-        EOF
+        netplan generate
+        netplan try --timeout 60
+        netplan apply
       args:
         executable: /bin/bash
+      register: netplan_result
+      failed_when: netplan_result.rc != 0 and 'Configuration accepted' not in netplan_result.stderr
 
     - name: Check if VM profile exists
       command: lxc profile show vm
@@ -194,7 +208,8 @@
           eth0:
             type: nic
             name: eth0
-            network: macvlan
+            nictype: bridged
+            parent: br0
           root:
             type: disk
             path: /

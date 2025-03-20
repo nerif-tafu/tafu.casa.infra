@@ -36,7 +36,7 @@
       ignore_errors: true
 
     - name: Get list of all profiles
-      shell: lxc profile list --format csv | cut -d',' -f1 | grep -v default
+      shell: lxc profile list --format csv | cut -d',' -f1 | grep -v default || true
       register: profile_list
       changed_when: false
 
@@ -68,6 +68,20 @@
       when: storage_list.stdout != ""
       ignore_errors: true
 
+    # Add netplan cleanup tasks
+    - name: Remove LXD bridge netplan configuration
+      file:
+        path: /etc/netplan/99-lxd-bridge.yaml
+        state: absent
+
+    - name: Regenerate netplan configuration
+      shell: |
+        netplan generate
+        netplan apply
+      args:
+        executable: /bin/bash
+      ignore_errors: true
+
     - name: Stop LXD daemon
       systemd:
         name: snap.lxd.daemon
@@ -78,12 +92,6 @@
       file:
         path: /var/lib/lxd
         state: absent
-
-    - name: Remove LXD snap
-      community.general.snap:
-        name: lxd
-        state: absent
-      ignore_errors: true
 
     - name: Display completion message
       debug:
