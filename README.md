@@ -51,3 +51,6 @@ ansible-playbook -i localhost, Bases/lxd-vm-base/bootstrap.yml
     ```bash
     ansible-playbook -i localhost, Bases/lxd-vm-base/create-vm.yml -e "vm_name=test-vm cpu_cores=4"
     ```
+
+ansible-playbook -i 192.168.3.226, -e "runner=staging" Templates/runner-template/deploy.yml
+ansible-playbook -i 192.168.3.226, Services/demo-app-service/deploy.yml -e "service_number=2"

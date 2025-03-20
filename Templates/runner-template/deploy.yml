@@ -2,6 +2,12 @@
 - name: Deploy Bridge Traefik Server
   hosts: all
   become: true
+  vars:
+    runner: ""  # Default empty value (no subdomain)
+    domain_base: "tafu.casa"
+    domain_prefix: "{{ runner + '.' if runner != '' else '' }}"
+    domain_full: "{{ domain_prefix }}{{ domain_base }}"
+
   tasks:
     - name: Create bridge traefik directory
       file:
@@ -16,14 +22,14 @@
         mode: '0755'
 
     - name: Copy docker-compose.yml
-      copy:
-        src: docker-compose.yml
+      template:
+        src: docker-compose.yml.j2
         dest: /opt/bridge-traefik/docker-compose.yml
         mode: '0644'
 
     - name: Copy traefik config
-      copy:
-        src: traefik/traefik.yml
+      template:
+        src: traefik/traefik.yml.j2
         dest: /opt/bridge-traefik/traefik/traefik.yml
         mode: '0644'
 
@@ -40,4 +46,59 @@
       shell: |
         cd /opt/bridge-traefik
         docker compose down --remove-orphans
-        docker compose up -d 
+        docker compose up -d
+
+    - name: Create dynamic config directory
+      file:
+        path: /opt/bridge-traefik/dynamic
+        state: directory
+        mode: '0755'
+
+    - name: Create runner-info directory
+      file:
+        path: /opt/bridge-traefik/runner-info
+        state: directory
+        mode: '0755'
+
+    - name: Create runner info HTML file
+      template:
+        src: runner-info/index.html.j2
+        dest: /opt/bridge-traefik/runner-info/index.html
+        mode: '0644'
+
+    - name: Create runner info JSON file
+      template:
+        src: runner-info/json.j2
+        dest: /opt/bridge-traefik/runner-info/json
+        mode: '0644'
+
+    - name: Create runner info configuration
+      template:
+        src: dynamic/runner-info.yml.j2
+        dest: /opt/bridge-traefik/dynamic/runner-info.yml
+        mode: '0644'
+
+    - name: Create nginx configuration for runner-info
+      file:
+        path: /opt/bridge-traefik/runner-info/conf.d
+        state: directory
+        mode: '0755'
+
+    - name: Create nginx configuration
+      copy:
+        dest: /opt/bridge-traefik/runner-info/conf.d/default.conf
+        content: |
+          server {
+            listen 80;
+            root /usr/share/nginx/html;
+            
+            location / {
+              index index.html;
+            }
+            
+            location /json {
+              default_type application/json;
+              add_header Access-Control-Allow-Origin "*";
+            }
+          }
+        mode: '0644' 

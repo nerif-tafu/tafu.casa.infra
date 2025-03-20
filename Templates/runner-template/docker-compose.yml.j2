@@ -1,0 +1,50 @@
+services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--log.level=DEBUG"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/dev/stdout"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--api.insecure=true"
+      - "--ping=true"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - bridge-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bridge-api.rule=PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.bridge-api.service=api@internal"
+      # Added for identification
+      - "traefik.http.services.bridge-traefik.loadbalancer.server.port=80"
+      - "com.runner.subdomain={{ runner }}"
+      - "com.runner.domain={{ domain_full }}"
+    environment:
+      - RUNNER={{ runner }}
+      - DOMAIN_FULL={{ domain_full }}
+
+  # Simple container to serve runner info
+  runner-info:
+    image: nginx:alpine
+    volumes:
+      - ./runner-info:/usr/share/nginx/html
+    networks:
+      - bridge-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.runner-info.rule=Host(`runner-info.local`) || Path(`/runner-info`) || Path(`/runner-info/json`)"
+      - "traefik.http.services.runner-info.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.json-rewrite.replacepathregex.regex=^/runner-info/json$$"
+      - "traefik.http.middlewares.json-rewrite.replacepathregex.replacement=/json"
+      - "traefik.http.routers.runner-info.middlewares=json-rewrite@docker"
+
+networks:
+  bridge-network:
+    name: bridge-network
+    external: true 

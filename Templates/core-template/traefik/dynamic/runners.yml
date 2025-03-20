@@ -1,19 +1,32 @@
 http:
   routers:
+    # Default runner (no subdomain)
     runner1:
       rule: "HostRegexp(`{service:[1-9]+-demo-app-service\\.tafu\\.casa}`)"
       service: runner1
       entryPoints:
-        - "web"
         - "websecure"
     
-    # Add more routers for other runner VMs as needed
-    # runner2:
-    #   rule: "HostRegexp(`{service:[1-9]+-other-service\\.tafu\\.casa}`)"
-    #   service: runner2
-    #   entryPoints:
-    #     - "web"
-    #     - "websecure"
+    # Staging runner
+    runner1-staging:
+      rule: "HostRegexp(`{service:[1-9]+-demo-app-service\\.staging\\.tafu\\.casa}`)"
+      service: runner1
+      entryPoints:
+        - "websecure"
+    
+    # Demo runner
+    runner1-demo:
+      rule: "HostRegexp(`{service:[1-9]+-demo-app-service\\.demo\\.tafu\\.casa}`)"
+      service: runner1
+      entryPoints:
+        - "websecure"
+    
+    # Generic subdomain pattern for future subdomains
+    runner1-subdomain:
+      rule: "HostRegexp(`{service:[1-9]+-demo-app-service\\.{subdomain:[a-z0-9-]+}\\.tafu\\.casa}`)"
+      service: runner1
+      entryPoints:
+        - "websecure"
   
   services:
     runner1:

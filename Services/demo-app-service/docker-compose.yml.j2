@@ -6,7 +6,7 @@ services:
     labels:
       - "traefik.enable=true"
       # Direct access from bridge Traefik
-      - "traefik.http.routers.bridge-frontend-{{ service_number }}.rule=Host(`{{ service_name }}.tafu.casa`) && Path(`/`)"
+      - "traefik.http.routers.bridge-frontend-{{ service_number }}.rule=Host(`{{ service_name }}.{% if runner is defined and runner != '' %}{{ runner }}.{% endif %}tafu.casa`) && Path(`/`)"
       - "traefik.http.services.bridge-frontend-{{ service_number }}.loadbalancer.server.port=9000"
       - "traefik.docker.network=bridge-network"
     networks:
@@ -18,7 +18,7 @@ services:
     labels:
       - "traefik.enable=true"
       # Direct access from bridge Traefik
-      - "traefik.http.routers.bridge-backend-{{ service_number }}.rule=Host(`{{ service_name }}.tafu.casa`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.bridge-backend-{{ service_number }}.rule=Host(`{{ service_name }}.{% if runner is defined and runner != '' %}{{ runner }}.{% endif %}tafu.casa`) && PathPrefix(`/api`)"
       - "traefik.http.services.bridge-backend-{{ service_number }}.loadbalancer.server.port=9001"
       - "traefik.docker.network=bridge-network"
     networks:
@@ -37,7 +37,7 @@ services:
       - "--ping=true"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.demo-app-{{ service_number }}.rule=Host(`{{ service_name }}.tafu.casa`)"
+      - "traefik.http.routers.demo-app-{{ service_number }}.rule=Host(`{{ service_name }}.{% if runner is defined and runner != '' %}{{ runner }}.{% endif %}tafu.casa`)"
       - "traefik.http.services.demo-app-{{ service_number }}.loadbalancer.server.port=80"
       - "traefik.docker.network=bridge-network"
     volumes:

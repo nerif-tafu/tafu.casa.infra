@@ -5,8 +5,48 @@
   vars:
     service_number: "1"  # Default value if not provided
     service_name: "{{ service_number }}-demo-app-service"
+    runner: ""  # Default empty, will be overridden if discovered
+    # Fallback domain calculation only used if runner-info is unavailable
+    domain_base: "tafu.casa"
+    domain_full: "{{ runner + '.' if runner != '' else '' }}{{ domain_base }}"
 
   tasks:
+    - name: Check if runner-info is available
+      uri:
+        url: http://localhost/runner-info/json
+        method: GET
+        return_content: yes
+        status_code: 200
+      register: runner_info_result
+      ignore_errors: yes
+
+    - name: Set runner info availability flag
+      set_fact:
+        runner_info_available: "{{ runner_info_result is defined and runner_info_result.status == 200 }}"
+
+    - name: Parse runner information
+      set_fact:
+        # Parse the JSON content manually
+        runner_json: "{{ runner_info_result.content | from_json }}"
+      when: runner_info_available
+
+    - name: Set runner variables
+      set_fact:
+        runner: "{{ runner_json.runner }}"
+        domain_full: "{{ runner_json.domain }}"
+      when: runner_info_available
+
+    - name: Verify runner information
+      fail:
+        msg: >
+          Cannot deploy service: runner-info service is not available and no runner was specified.
+          Either ensure the runner-info service is running or specify a runner with -e "runner=name"
+      when: not runner_info_available and runner == ""
+
+    - name: Display runner information
+      debug:
+        msg: "Deploying to runner: {{ runner | default('default') }}"
+
     - name: Create service directories
       file:
         path: "{{ item }}"
@@ -49,6 +89,7 @@
         src: docker-compose.yml.j2
         dest: "/opt/{{ service_name }}/docker-compose.yml"
         mode: '0644'
+        # Pass all variables including runner
 
     - name: Copy traefik config
       copy:

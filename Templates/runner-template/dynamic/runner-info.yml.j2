@@ -1,0 +1,38 @@
+http:
+  routers:
+    runner-info:
+      rule: "Host(`runner-info.local`) || Path(`/runner-info`)"
+      service: runner-info
+      entryPoints:
+        - "web"
+
+  services:
+    runner-info:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:8080"
+      responseModifiers:
+        - regex: ".*"
+          replacement: |
+            {
+              "runner": "{{ runner }}",
+              "domain": "{{ domain_full }}"
+            }
+
+  middlewares:
+    runner-info-response:
+      contentType:
+        autoDetect: false
+        responseContentType: "application/json"
+
+  handlers:
+    runner-info-handler:
+      service: runner-info
+      middleware: runner-info-response
+      response:
+        status: 200
+        content: |
+          {
+            "runner": "{{ runner }}",
+            "domain": "{{ domain_full }}"
+          } 
