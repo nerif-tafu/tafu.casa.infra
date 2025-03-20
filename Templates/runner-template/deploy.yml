@@ -21,6 +21,12 @@
         state: directory
         mode: '0755'
 
+    - name: Create runner-info directory
+      file:
+        path: /opt/bridge-traefik/runner-info
+        state: directory
+        mode: '0755'
+
     - name: Copy docker-compose.yml
       template:
         src: docker-compose.yml.j2
@@ -33,6 +39,18 @@
         dest: /opt/bridge-traefik/traefik/traefik.yml
         mode: '0644'
 
+    - name: Copy runner-info app
+      copy:
+        src: runner-info/app.py
+        dest: /opt/bridge-traefik/runner-info/app.py
+        mode: '0755'
+
+    - name: Copy runner-info HTML template
+      copy:
+        src: runner-info/index.html
+        dest: /opt/bridge-traefik/runner-info/index.html
+        mode: '0644'
+
     - name: Check if bridge network exists
       command: docker network inspect bridge-network
       register: network_check
@@ -41,64 +59,11 @@
     - name: Create bridge network if it doesn't exist
       command: docker network create bridge-network
       when: network_check.rc != 0
+      register: network_created
+      failed_when: network_created.rc != 0 and "already exists" not in network_created.stderr
 
     - name: Deploy Bridge Traefik
       shell: |
         cd /opt/bridge-traefik
         docker compose down --remove-orphans
-        docker compose up -d
-
-    - name: Create dynamic config directory
-      file:
-        path: /opt/bridge-traefik/dynamic
-        state: directory
-        mode: '0755'
-
-    - name: Create runner-info directory
-      file:
-        path: /opt/bridge-traefik/runner-info
-        state: directory
-        mode: '0755'
-
-    - name: Create runner info HTML file
-      template:
-        src: runner-info/index.html.j2
-        dest: /opt/bridge-traefik/runner-info/index.html
-        mode: '0644'
-
-    - name: Create runner info JSON file
-      template:
-        src: runner-info/json.j2
-        dest: /opt/bridge-traefik/runner-info/json
-        mode: '0644'
-
-    - name: Create runner info configuration
-      template:
-        src: dynamic/runner-info.yml.j2
-        dest: /opt/bridge-traefik/dynamic/runner-info.yml
-        mode: '0644'
-
-    - name: Create nginx configuration for runner-info
-      file:
-        path: /opt/bridge-traefik/runner-info/conf.d
-        state: directory
-        mode: '0755'
-
-    - name: Create nginx configuration
-      copy:
-        dest: /opt/bridge-traefik/runner-info/conf.d/default.conf
-        content: |
-          server {
-            listen 80;
-            root /usr/share/nginx/html;
-            
-            location / {
-              index index.html;
-            }
-            
-            location /json {
-              default_type application/json;
-              add_header Access-Control-Allow-Origin "*";
-            }
-          }
-        mode: '0644' 
+        docker compose up -d 

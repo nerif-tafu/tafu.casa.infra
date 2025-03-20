@@ -2,7 +2,7 @@ http:
   routers:
     default-router:
       rule: "HostRegexp(`{host:.+}`)"
-      priority: 1  # Lower priority than specific routes
+      priority: 1  # Very low priority to ensure it only catches requests that don't match other rules
       service: default-service
       entryPoints:
         - "web"

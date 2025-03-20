@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Runner Info</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .refresh { margin-top: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; }
+        .status { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; }
+        .status-running { background-color: #d4edda; color: #155724; }
+        .status-stopped { background-color: #f8d7da; color: #721c24; }
+        .service-item { background-color: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 5px; }
+        .service-name { font-weight: bold; }
+        .refresh-btn { background-color: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Runner Info</h1>
+            <button class="refresh-btn" onclick="window.location.reload()">Refresh</button>
+        </div>
+        
+        <div>
+            <p>Runner: <strong>{{ runner }}</strong></p>
+            <p>Domain: <strong>{{ domain }}</strong></p>
+            <p>IP Address: <strong>{{ ip }}</strong></p>
+            <p>Last updated: <strong>{{ last_updated }}</strong></p>
+        </div>
+        
+        <h2>Services ({{ services|length }})</h2>
+        {% if services %}
+            {% for service in services %}
+                <div class="service-item">
+                    <p class="service-name">{{ service.name }}</p>
+                    <p>Full Domain: <a href="http://{{ service.fullDomain }}" target="_blank">{{ service.fullDomain }}</a></p>
+                    <p>Container: {{ service.container }}</p>
+                    <p>Status: <span class="status status-{{ service.status }}">{{ service.status }}</span></p>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No services found.</p>
+        {% endif %}
+        
+        <div class="refresh">
+            <p>API: <a href="/json">/json</a></p>
+            <p>Raw JSON:</p>
+            <pre>{{ json_data }}</pre>
+        </div>
+    </div>
+</body>
+</html> 

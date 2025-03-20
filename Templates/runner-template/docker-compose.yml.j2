@@ -10,6 +10,9 @@ services:
       - "--entrypoints.web.address=:80"
       - "--api.insecure=true"
       - "--ping=true"
+      # Expose configuration via HTTP
+      - "--providers.rest=true"
+      - "--providers.rest.insecure=true"
     ports:
       - "80:80"
       - "8080:8080"
@@ -29,20 +32,24 @@ services:
       - RUNNER={{ runner }}
       - DOMAIN_FULL={{ domain_full }}
 
-  # Simple container to serve runner info
+  # Dynamic service discovery container
   runner-info:
-    image: nginx:alpine
+    image: python:3.10-alpine
     volumes:
-      - ./runner-info:/usr/share/nginx/html
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./runner-info:/app
     networks:
       - bridge-network
+    command: sh -c "pip install flask docker && python /app/app.py"
+    environment:
+      - RUNNER={{ runner }}
+      - DOMAIN_FULL={{ domain_full }}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.runner-info.rule=Host(`runner-info.local`) || Path(`/runner-info`) || Path(`/runner-info/json`)"
+      - "traefik.http.routers.runner-info.rule=Host(`runner-info.local`) || PathPrefix(`/runner-info`) || PathPrefix(`/runner-info/json`)"
       - "traefik.http.services.runner-info.loadbalancer.server.port=80"
-      - "traefik.http.middlewares.json-rewrite.replacepathregex.regex=^/runner-info/json$$"
-      - "traefik.http.middlewares.json-rewrite.replacepathregex.replacement=/json"
-      - "traefik.http.routers.runner-info.middlewares=json-rewrite@docker"
+      - "traefik.http.middlewares.runner-info-strip.stripprefix.prefixes=/runner-info"
+      - "traefik.http.routers.runner-info.middlewares=runner-info-strip@docker"
 
 networks:
   bridge-network:

@@ -21,6 +21,12 @@
         state: directory
         mode: '0755'
 
+    - name: Create registry directory
+      file:
+        path: /opt/core-traefik/registry
+        state: directory
+        mode: '0755'
+
     - name: Copy docker-compose.yml
       copy:
         src: docker-compose.yml
@@ -39,6 +45,12 @@
         dest: /opt/core-traefik/traefik/dynamic/
         mode: '0644'
         directory_mode: '0755'
+
+    - name: Copy registry script
+      copy:
+        src: registry/
+        dest: /opt/core-traefik/registry/
+        mode: '0755'
 
     - name: Check if traefik-public network exists
       command: docker network inspect traefik-public

@@ -31,6 +31,20 @@ services:
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.entrypoints=web"
 
+  registry:
+    image: python:3.10-alpine
+    volumes:
+      - ./registry:/app
+      - ./traefik/dynamic:/output
+    restart: unless-stopped
+    command: sh -c "pip install requests pyyaml flask && mkdir -p /app/templates && cp /app/index.html /app/templates/ && python /app/registry.py"
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.registry-dashboard.rule=Host(`registry.tafu.casa`)"
+      - "traefik.http.services.registry-dashboard.loadbalancer.server.port=5000"
+
 networks:
   traefik-public:
     external: true 
