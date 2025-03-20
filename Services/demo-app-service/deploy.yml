@@ -103,3 +103,14 @@
         docker compose down --remove-orphans
         docker compose build --no-cache  # Force rebuild of images
         docker compose up -d 
+
+    - name: Trigger registry refresh
+      uri:
+        url: "http://192.168.3.225/api/refresh"
+        method: GET
+        status_code: 200
+        headers:
+          Host: "registry.tafu.casa"
+      ignore_errors: yes
+      delegate_to: localhost
+      when: "'192.168.3.225' not in inventory_hostname" 

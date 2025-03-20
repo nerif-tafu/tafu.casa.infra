@@ -1,26 +1,26 @@
 ---
-- name: Undeploy Service
+- name: Undeploy Demo App Service
   hosts: all
   become: true
   vars:
-    service_name: ""  # Required parameter, e.g. "2-demo-app-service"
+    service_number: "1"  # Default value if not provided
+    service_name: "{{ service_number }}-demo-app-service"
   
   tasks:
-    - name: Verify service name is provided
-      fail:
-        msg: "You must provide a service_name parameter, e.g. -e 'service_name=2-demo-app-service'"
-      when: service_name | length == 0
+    - name: Display service being undeployed
+      debug:
+        msg: "Undeploying service: {{ service_name }}"
 
     - name: Stop and remove service containers
       shell: |
-        docker compose -p {{ service_name }} down --remove-orphans -v
+        docker compose down --remove-orphans -v
       args:
-        chdir: "/opt/services/{{ service_name }}"
+        chdir: "/opt/{{ service_name }}"
       ignore_errors: yes
 
     - name: Remove service directory
       file:
-        path: "/opt/services/{{ service_name }}"
+        path: "/opt/{{ service_name }}"
         state: absent
 
     - name: Get list of Docker containers for this service
@@ -56,11 +56,17 @@
       ignore_errors: yes
       when: network_list.stdout_lines | length > 0
 
-    - name: Wait for registry to update (30 seconds)
-      pause:
-        seconds: 30
+    - name: Trigger registry refresh
+      uri:
+        url: "http://192.168.3.225/api/refresh"
+        method: GET
+        status_code: 200
+        headers:
+          Host: "registry.tafu.casa"
+      ignore_errors: yes
+      delegate_to: localhost
       when: "'192.168.3.225' not in inventory_hostname"
-
+      
     - name: Show success message
       debug:
-        msg: "Successfully undeployed service {{ service_name }}. The registry will update within 30 seconds to remove routes." 
+        msg: "Successfully undeployed service {{ service_name }}. The registry has been refreshed to remove routes." 

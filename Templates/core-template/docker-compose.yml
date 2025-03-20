@@ -32,12 +32,12 @@ services:
       - "traefik.http.routers.dashboard.entrypoints=web"
 
   registry:
-    image: python:3.10-alpine
+    build:
+      context: ./registry
+      dockerfile: Dockerfile
     volumes:
-      - ./registry:/app
       - ./traefik/dynamic:/output
     restart: unless-stopped
-    command: sh -c "pip install requests pyyaml flask && mkdir -p /app/templates && cp /app/index.html /app/templates/ && python /app/registry.py"
     networks:
       - traefik-public
     labels:

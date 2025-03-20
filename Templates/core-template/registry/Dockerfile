@@ -2,15 +2,11 @@ FROM python:3.10-alpine
 
 WORKDIR /app
 
-# Install dependencies
-RUN pip install requests pyyaml flask
+# Install required packages
+RUN pip install --no-cache-dir requests pyyaml flask flask-socketio eventlet
 
-# Create template directory
-RUN mkdir -p /app/templates
+COPY . /app/
 
-# Copy application files
-COPY registry.py /app/
-RUN chmod +x /app/registry.py
+EXPOSE 5000
 
-# Run the application
-CMD ["/app/registry.py"] 
+CMD ["python", "registry.py"] 

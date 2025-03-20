@@ -6,6 +6,7 @@ import os
 import yaml
 import threading
 from flask import Flask, jsonify, render_template
+from flask_socketio import SocketIO
 
 RUNNER_IPS = [
     "192.168.3.215",  # Default runner
@@ -20,6 +21,7 @@ discovered_runners = []
 last_updated = None
 
 app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.route('/')
 def index():
@@ -34,6 +36,28 @@ def api_runners():
         "runners": discovered_runners,
         "last_updated": last_updated,
         "endpoints": [f"http://{ip}{RUNNER_INFO_PATH}" for ip in RUNNER_IPS]
+    })
+
+@app.route('/api/refresh', methods=['GET', 'POST'])
+def refresh_config():
+    """Webhook endpoint to trigger immediate refresh"""
+    print("Refresh webhook triggered")
+    
+    # Run discovery and generate config synchronously
+    runners = discover_runners()
+    generate_config(runners)
+    
+    # Notify all connected clients of the update
+    socketio.emit('config_updated', {
+        'timestamp': time.strftime("%Y-%m-%d %H:%M:%S"),
+        'runner_count': len(runners)
+    })
+    
+    return jsonify({
+        "status": "success",
+        "message": "Configuration refresh triggered",
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "services_count": len(runners)
     })
 
 def discover_runners():
@@ -125,6 +149,12 @@ def discovery_thread():
         
         generate_config(runners)
         
+        # Notify all connected clients of the update
+        socketio.emit('config_updated', {
+            'timestamp': time.strftime("%Y-%m-%d %H:%M:%S"),
+            'runner_count': len(runners)
+        })
+        
         time.sleep(POLLING_INTERVAL)
 
 def main():
@@ -134,9 +164,9 @@ def main():
     template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
     os.makedirs(template_dir, exist_ok=True)
     
-    # Create HTML template if it doesn't exist - use absolute path
+    # Create HTML template - now with WebSocket support
     template_path = os.path.join(template_dir, 'index.html')
-    if not os.path.exists(template_path):
+    if not os.path.exists(template_path) or True:  # Always update the template
         with open(template_path, 'w') as f:
             f.write("""
 <!DOCTYPE html>
@@ -214,14 +244,34 @@ def main():
             font-style: italic;
             margin-bottom: 20px;
         }
+        /* Add new notification style */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 16px;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+        
+        .notification.show {
+            opacity: 1;
+        }
     </style>
+    <!-- Add Socket.IO client library -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>Traefik Registry Dashboard</h1>
         
         <div class="last-updated">
-            Last updated: {{ last_updated or 'Never' }}
+            Last updated: <span id="last-updated">{{ last_updated or 'Never' }}</span>
             <button class="refresh-btn" onclick="window.location.reload()">Refresh</button>
         </div>
         
@@ -263,6 +313,32 @@ def main():
             <p>No runners discovered yet.</p>
         {% endif %}
     </div>
+    
+    <!-- Notification element -->
+    <div id="notification" class="notification">Configuration updated! Refreshing...</div>
+    
+    <script>
+        // Connect to WebSocket server
+        const socket = io();
+        
+        // Listen for configuration updates
+        socket.on('config_updated', function(data) {
+            console.log('Configuration updated:', data);
+            
+            // Show notification
+            const notification = document.getElementById('notification');
+            notification.textContent = `Configuration updated at ${data.timestamp}! Refreshing...`;
+            notification.classList.add('show');
+            
+            // Update last-updated time without refreshing
+            document.getElementById('last-updated').textContent = data.timestamp;
+            
+            // Auto-refresh after a short delay
+            setTimeout(function() {
+                window.location.reload();
+            }, 2000);
+        });
+    </script>
 </body>
 </html>
             """)
@@ -271,8 +347,8 @@ def main():
     t = threading.Thread(target=discovery_thread, daemon=True)
     t.start()
     
-    # Start the web server
-    app.run(host='0.0.0.0', port=5000)
+    # Start the web server with WebSocket support
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
 
 if __name__ == "__main__":
     main() 
