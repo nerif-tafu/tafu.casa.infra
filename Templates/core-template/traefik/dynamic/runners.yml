@@ -1,0 +1,27 @@
+http:
+  routers:
+    runner1:
+      rule: "HostRegexp(`{service:[1-9]+-demo-app-service\\.tafu\\.casa}`)"
+      service: runner1
+      entryPoints:
+        - "web"
+        - "websecure"
+    
+    # Add more routers for other runner VMs as needed
+    # runner2:
+    #   rule: "HostRegexp(`{service:[1-9]+-other-service\\.tafu\\.casa}`)"
+    #   service: runner2
+    #   entryPoints:
+    #     - "web"
+    #     - "websecure"
+  
+  services:
+    runner1:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.3.215:80"  # IP of runner1 VM
+    
+    # runner2:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.3.216:80"  # IP of runner2 VM 

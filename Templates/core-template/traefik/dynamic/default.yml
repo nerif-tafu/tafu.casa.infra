@@ -1,0 +1,15 @@
+http:
+  routers:
+    default-router:
+      rule: "HostRegexp(`{host:.+}`)"
+      priority: 1  # Lower priority than specific routes
+      service: default-service
+      entryPoints:
+        - "web"
+        - "websecure"
+  
+  services:
+    default-service:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.3.215:80"  # IP of primary runner VM 

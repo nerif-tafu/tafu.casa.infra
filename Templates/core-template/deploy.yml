@@ -1,0 +1,58 @@
+---
+- name: Deploy Core Traefik Server
+  hosts: all
+  become: true
+  tasks:
+    - name: Create core traefik directory
+      file:
+        path: /opt/core-traefik
+        state: directory
+        mode: '0755'
+
+    - name: Create traefik config directory
+      file:
+        path: /opt/core-traefik/traefik
+        state: directory
+        mode: '0755'
+
+    - name: Create dynamic config directory
+      file:
+        path: /opt/core-traefik/traefik/dynamic
+        state: directory
+        mode: '0755'
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: docker-compose.yml
+        dest: /opt/core-traefik/docker-compose.yml
+        mode: '0644'
+
+    - name: Copy traefik config
+      copy:
+        src: traefik/traefik.yml
+        dest: /opt/core-traefik/traefik/traefik.yml
+        mode: '0644'
+
+    - name: Copy dynamic configurations
+      copy:
+        src: traefik/dynamic/
+        dest: /opt/core-traefik/traefik/dynamic/
+        mode: '0644'
+        directory_mode: '0755'
+
+    - name: Check if traefik-public network exists
+      command: docker network inspect traefik-public
+      register: network_check
+      failed_when: false
+
+    - name: Create traefik-public network if it doesn't exist
+      command: docker network create traefik-public
+      when: network_check.rc != 0
+      register: network_created
+      failed_when: network_created.rc != 0 and "already exists" not in network_created.stderr
+
+    - name: Deploy Core Traefik
+      shell: |
+        cd /opt/core-traefik
+        docker compose down --remove-orphans
+        docker compose up -d 
