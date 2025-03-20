@@ -1,0 +1,66 @@
+---
+- name: Undeploy Service
+  hosts: all
+  become: true
+  vars:
+    service_name: ""  # Required parameter, e.g. "2-demo-app-service"
+  
+  tasks:
+    - name: Verify service name is provided
+      fail:
+        msg: "You must provide a service_name parameter, e.g. -e 'service_name=2-demo-app-service'"
+      when: service_name | length == 0
+
+    - name: Stop and remove service containers
+      shell: |
+        docker compose -p {{ service_name }} down --remove-orphans -v
+      args:
+        chdir: "/opt/services/{{ service_name }}"
+      ignore_errors: yes
+
+    - name: Remove service directory
+      file:
+        path: "/opt/services/{{ service_name }}"
+        state: absent
+
+    - name: Get list of Docker containers for this service
+      shell: docker ps -a --filter name={{ service_name }} --format "{% raw %}{{.Names}}{% endraw %}"
+      register: container_list
+      ignore_errors: yes
+
+    - name: Force remove any remaining containers
+      shell: docker rm -f {{ item }}
+      with_items: "{{ container_list.stdout_lines }}"
+      ignore_errors: yes
+      when: container_list.stdout_lines | length > 0
+
+    - name: Get list of Docker volumes for this service
+      shell: docker volume ls --filter name={{ service_name }} --format "{% raw %}{{.Name}}{% endraw %}"
+      register: volume_list
+      ignore_errors: yes
+
+    - name: Remove volumes
+      shell: docker volume rm {{ item }}
+      with_items: "{{ volume_list.stdout_lines }}"
+      ignore_errors: yes
+      when: volume_list.stdout_lines | length > 0
+
+    - name: Get list of Docker networks for this service
+      shell: docker network ls --filter name={{ service_name }} --format "{% raw %}{{.Name}}{% endraw %}"
+      register: network_list
+      ignore_errors: yes
+
+    - name: Remove networks
+      shell: docker network rm {{ item }}
+      with_items: "{{ network_list.stdout_lines }}"
+      ignore_errors: yes
+      when: network_list.stdout_lines | length > 0
+
+    - name: Wait for registry to update (30 seconds)
+      pause:
+        seconds: 30
+      when: "'192.168.3.225' not in inventory_hostname"
+
+    - name: Show success message
+      debug:
+        msg: "Successfully undeployed service {{ service_name }}. The registry will update within 30 seconds to remove routes." 
