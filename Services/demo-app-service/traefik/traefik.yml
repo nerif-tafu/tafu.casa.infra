@@ -1,10 +1,6 @@
 api:
   insecure: false
 
-entryPoints:
-  web:
-    address: ":8050"
-
 providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"

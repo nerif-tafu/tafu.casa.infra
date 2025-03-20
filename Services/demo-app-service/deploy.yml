@@ -38,6 +38,12 @@
         dest: "/opt/{{ service_name }}/backend/server.js"
         mode: '0644'
 
+    - name: Template frontend server
+      template:
+        src: frontend/server.js.j2
+        dest: "/opt/{{ service_name }}/frontend/server.js"
+        mode: '0644'
+
     - name: Copy docker-compose.yml
       template:
         src: docker-compose.yml.j2

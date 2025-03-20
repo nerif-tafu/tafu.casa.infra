@@ -1,0 +1,85 @@
+const express = require('express');
+const app = express();
+const port = 9000;
+
+// Serve HTML at root path
+app.get('/', (req, res) => {
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ service_name }} Frontend</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      line-height: 1.6;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #2c3e50;
+    }
+    .info {
+      background-color: #f8f9fa;
+      padding: 15px;
+      border-radius: 4px;
+      margin-top: 20px;
+    }
+    .api-link {
+      display: inline-block;
+      margin-top: 20px;
+      background-color: #3498db;
+      color: white;
+      padding: 10px 15px;
+      text-decoration: none;
+      border-radius: 4px;
+    }
+    .api-link:hover {
+      background-color: #2980b9;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome to {{ service_name }}</h1>
+    <p>This is a simple frontend server running in a Docker container.</p>
+    
+    <div class="info">
+      <p><strong>Service:</strong> {{ service_number }}-demo-app-service-frontend</p>
+      <p><strong>Server time:</strong> <span id="server-time">${new Date().toLocaleString()}</span></p>
+    </div>
+    
+    <a href="/api/test" class="api-link">Test Backend API</a>
+  </div>
+</body>
+</html>
+  `;
+  
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
+// For other paths, serve a JSON response
+app.get('/*', (req, res) => {
+  if (!req.path.startsWith('/api')) {
+    res.json({
+      message: "Frontend Server Running",
+      service: "{{ service_number }}-demo-app-service-frontend",
+      path: req.path
+    });
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Frontend server listening at http://localhost:${port}`);
+}); 
