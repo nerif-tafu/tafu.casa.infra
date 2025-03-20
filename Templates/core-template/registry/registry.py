@@ -81,6 +81,7 @@ def generate_config(runners):
     
     # For each runner
     for runner in runners:
+        runner_name = runner['runner']  # Either 'default' or 'staging' or other name
         runner_ip = runner['ip']
         
         # For each service on this runner
@@ -89,20 +90,26 @@ def generate_config(runners):
                 service_name = service['name']
                 service_domain = service['fullDomain']
                 
+                # Create unique router and service names using both runner and service name
+                # This prevents services with the same name on different runners from overwriting each other
+                router_name = f"{service_name}-{runner_name}-router"
+                service_backend_name = f"{service_name}-{runner_name}-service"
+                
                 # Create router for this specific service
-                router_name = f"{service_name}-router"
                 config["http"]["routers"][router_name] = {
                     "rule": f"Host(`{service_domain}`)",
-                    "service": f"{service_name}-service",
+                    "service": service_backend_name,
                     "entryPoints": ["websecure", "web"]
                 }
                 
                 # Create service for this specific service
-                config["http"]["services"][f"{service_name}-service"] = {
+                config["http"]["services"][service_backend_name] = {
                     "loadBalancer": {
                         "servers": [{"url": f"http://{runner_ip}:80"}]
                     }
                 }
+                
+                print(f"Added route for {service_domain} to {runner_ip}")
     
     # Write the combined configuration to a single file
     output_file = os.path.join(OUTPUT_DIR, "services.yml")
