@@ -1,0 +1,58 @@
+---
+- name: Deploy Demo App Service
+  hosts: all
+  become: true
+  vars:
+    service_number: "1"  # Default value if not provided
+    service_name: "{{ service_number }}-demo-app-service"
+
+  tasks:
+    - name: Create service directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      with_items:
+        - "/opt/{{ service_name }}"
+        - "/opt/{{ service_name }}/traefik"
+        - "/opt/{{ service_name }}/frontend"
+        - "/opt/{{ service_name }}/backend"
+
+    - name: Copy frontend files
+      copy:
+        src: frontend/
+        dest: "/opt/{{ service_name }}/frontend/"
+        mode: '0755'
+        directory_mode: '0755'
+
+    - name: Copy backend files
+      copy:
+        src: backend/
+        dest: "/opt/{{ service_name }}/backend/"
+        mode: '0755'
+        directory_mode: '0755'
+
+    - name: Template backend server
+      template:
+        src: backend/server.js.j2
+        dest: "/opt/{{ service_name }}/backend/server.js"
+        mode: '0644'
+
+    - name: Copy docker-compose.yml
+      template:
+        src: docker-compose.yml.j2
+        dest: "/opt/{{ service_name }}/docker-compose.yml"
+        mode: '0644'
+
+    - name: Copy traefik config
+      copy:
+        src: traefik/traefik.yml
+        dest: "/opt/{{ service_name }}/traefik/traefik.yml"
+        mode: '0644'
+
+    - name: Deploy with Docker Compose (with rebuild)
+      shell: |
+        cd /opt/{{ service_name }}
+        docker compose down --remove-orphans
+        docker compose build --no-cache  # Force rebuild of images
+        docker compose up -d 

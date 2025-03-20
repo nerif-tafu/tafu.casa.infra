@@ -3,10 +3,11 @@ api:
 
 entryPoints:
   web:
-    address: ":8050"
+    address: ":80"
 
 providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    network: web 
+    network: bridge-network
+    watch: true 

@@ -1,0 +1,43 @@
+---
+- name: Deploy Bridge Traefik Server
+  hosts: all
+  become: true
+  tasks:
+    - name: Create bridge traefik directory
+      file:
+        path: /opt/bridge-traefik
+        state: directory
+        mode: '0755'
+
+    - name: Create traefik config directory
+      file:
+        path: /opt/bridge-traefik/traefik
+        state: directory
+        mode: '0755'
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: docker-compose.yml
+        dest: /opt/bridge-traefik/docker-compose.yml
+        mode: '0644'
+
+    - name: Copy traefik config
+      copy:
+        src: traefik/traefik.yml
+        dest: /opt/bridge-traefik/traefik/traefik.yml
+        mode: '0644'
+
+    - name: Check if bridge network exists
+      command: docker network inspect bridge-network
+      register: network_check
+      failed_when: false
+
+    - name: Create bridge network if it doesn't exist
+      command: docker network create bridge-network
+      when: network_check.rc != 0
+
+    - name: Deploy Bridge Traefik
+      shell: |
+        cd /opt/bridge-traefik
+        docker compose down --remove-orphans
+        docker compose up -d 

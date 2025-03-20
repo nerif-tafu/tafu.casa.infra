@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--log.level=DEBUG"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/dev/stdout"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--api.insecure=true"
+      - "--ping=true"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - bridge-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bridge-api.rule=PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.bridge-api.service=api@internal"
+      - "traefik.http.routers.bridge-ping.rule=PathPrefix(`/ping`)"
+      - "traefik.http.routers.bridge-ping.service=ping@internal"
+
+  whoami:
+    image: traefik/whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=PathPrefix(`/whoami`)"
+      - "traefik.http.middlewares.whoami-stripprefix.stripprefix.prefixes=/whoami"
+      - "traefik.http.routers.whoami.middlewares=whoami-stripprefix@docker"
+    networks:
+      - bridge-network
+
+networks:
+  bridge-network:
+    name: bridge-network
+    external: true 
+# Testing here.

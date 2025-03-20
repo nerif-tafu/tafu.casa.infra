@@ -1,0 +1,20 @@
+const express = require('express');
+const app = express();
+const port = 9001;
+
+app.get('/api/test', (req, res) => {
+    res.json({
+        message: "Backend API is working Test",
+        service: "{{ service_number }}-demo-app-service"
+    });
+});
+
+app.get('/api/ping', (req, res) => {
+    res.json({
+        message: "Pong!"
+    });
+});
+
+app.listen(port, () => {
+    console.log(`Backend server listening on port ${port}`);
+}); 
