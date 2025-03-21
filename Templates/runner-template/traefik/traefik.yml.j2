@@ -1,9 +1,12 @@
 api:
-  insecure: false
+  insecure: true  # Enable this temporarily for debugging
 
 entryPoints:
   web:
     address: ":80"
+
+log:
+  level: "DEBUG"  # Increase logging for debugging
 
 providers:
   docker:
