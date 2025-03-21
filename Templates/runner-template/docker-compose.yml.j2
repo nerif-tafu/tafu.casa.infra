@@ -35,6 +35,11 @@ services:
       - "traefik.http.routers.services.service={service}"
       - "traefik.http.routers.services.entrypoints=web"
       - "traefik.http.routers.services.priority=100"
+      # Add a catch-all for host IP access (port 80)
+      - "traefik.http.routers.catchall.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.catchall.entrypoints=web"
+      - "traefik.http.routers.catchall.priority=1"
+      - "traefik.http.routers.catchall.service=runner-info"
     environment:
       - RUNNER={{ runner }}
       - DOMAIN_FULL={{ domain_full }}
