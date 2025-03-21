@@ -4,7 +4,7 @@
   become: true
   vars:
     runner: ""  # Default empty value (no subdomain)
-    domain_base: "tafu.casa"
+    domain_base: "{{ lookup('env', 'DOMAIN_BASE') | default('preview.tafu.casa', true) }}"  # Make configurable
     domain_prefix: "{{ runner + '.' if runner != '' else '' }}"
     domain_full: "{{ domain_prefix }}{{ domain_base }}"
 

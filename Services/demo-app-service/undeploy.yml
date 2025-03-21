@@ -5,6 +5,7 @@
   vars:
     service_number: "1"  # Default value if not provided
     service_name: "{{ service_number }}-demo-app-service"
+    domain_base: "{{ lookup('env', 'DOMAIN_BASE') | default('preview.tafu.casa', true) }}"
   
   tasks:
     - name: Display service being undeployed
@@ -62,7 +63,7 @@
         method: GET
         status_code: 200
         headers:
-          Host: "registry.tafu.casa"
+          Host: "registry.{{ domain_base }}"
       ignore_errors: yes
       delegate_to: localhost
       when: "'192.168.3.225' not in inventory_hostname"

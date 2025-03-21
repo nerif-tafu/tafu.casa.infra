@@ -9,7 +9,7 @@ from flask import Flask, jsonify, render_template_string
 
 # Configuration
 RUNNER_NAME = os.environ.get('RUNNER', 'default')
-DOMAIN_FULL = os.environ.get('DOMAIN_FULL', 'tafu.casa')
+DOMAIN_FULL = os.environ.get('DOMAIN_FULL', 'preview.tafu.casa')
 REFRESH_INTERVAL = 30  # seconds
 
 # Global state

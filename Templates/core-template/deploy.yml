@@ -2,6 +2,8 @@
 - name: Deploy Core Traefik Server
   hosts: all
   become: true
+  vars:
+    domain_base: "{{ lookup('env', 'DOMAIN_BASE') | default('preview.tafu.casa', true) }}"
   tasks:
     - name: Create core traefik directory
       file:
@@ -68,4 +70,9 @@
       shell: |
         cd /opt/core-traefik
         docker compose down --remove-orphans
-        docker compose up -d 
+        docker compose up -d
+
+    - name: Create environment file
+      copy:
+        content: "DOMAIN_BASE={{ domain_base }}"
+        dest: /opt/core-traefik/.env 

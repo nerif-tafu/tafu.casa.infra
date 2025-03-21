@@ -7,7 +7,7 @@
     service_name: "{{ service_number }}-demo-app-service"
     runner: ""  # Default empty, will be overridden if discovered
     # Fallback domain calculation only used if runner-info is unavailable
-    domain_base: "tafu.casa"
+    domain_base: "{{ lookup('env', 'DOMAIN_BASE') | default('preview.tafu.casa', true) }}"
     domain_full: "{{ runner + '.' if runner != '' else '' }}{{ domain_base }}"
 
   tasks:
@@ -110,7 +110,7 @@
         method: GET
         status_code: 200
         headers:
-          Host: "registry.tafu.casa"
+          Host: "registry.{{ domain_base }}"
       ignore_errors: yes
       delegate_to: localhost
       when: "'192.168.3.225' not in inventory_hostname" 

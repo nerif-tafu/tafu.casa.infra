@@ -40,9 +40,11 @@ services:
     restart: unless-stopped
     networks:
       - traefik-public
+    environment:
+      - DOMAIN_BASE=${DOMAIN_BASE:-preview.tafu.casa}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.registry-dashboard.rule=Host(`registry.tafu.casa`)"
+      - "traefik.http.routers.registry-dashboard.rule=Host(`registry.${DOMAIN_BASE:-preview.tafu.casa}`)"
       - "traefik.http.services.registry-dashboard.loadbalancer.server.port=5000"
 
 networks:

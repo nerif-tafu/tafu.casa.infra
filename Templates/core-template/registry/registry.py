@@ -8,6 +8,9 @@ import threading
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
 
+# Read domain from environment or use default
+DOMAIN_BASE = os.environ.get('DOMAIN_BASE', 'preview.tafu.casa')
+
 RUNNER_IPS = [
     "192.168.3.215",  # Default runner
     "192.168.3.226"   # Staging runner
