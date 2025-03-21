@@ -10,6 +10,9 @@ services:
       - "--entrypoints.web.address=:80"
       - "--api.insecure=true"
       - "--ping=true"
+      # Load static configuration from file
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
       # Expose configuration via HTTP
       - "--providers.rest=true"
       - "--providers.rest.insecure=true"
@@ -18,6 +21,7 @@ services:
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic
     networks:
       - bridge-network
     labels:
@@ -30,16 +34,11 @@ services:
       - "com.runner.domain={{ domain_full }}"
       # Make sure traefik can route multi-level subdomains
       - "traefik.http.middlewares.strip-service-prefix.stripprefix.prefixes=/"
-      # Match any domain pattern with service name as first subdomain
-      - "traefik.http.routers.services.rule=HostRegexp(`{service:[a-z0-9-]+}.{{ domain_full }}`)"
-      - "traefik.http.routers.services.service={service}"
+      # Use a wildcard domain pattern that forwards to the right service
+      - "traefik.http.routers.services.rule=HostRegexp(`{number:[0-9]+}-demo-app-service.{{ domain_full }}`)"
+      - "traefik.http.routers.services.service=demo-app-{number}"
       - "traefik.http.routers.services.entrypoints=web"
       - "traefik.http.routers.services.priority=100"
-      # Add a catch-all for host IP access (port 80)
-      - "traefik.http.routers.catchall.rule=HostRegexp(`{host:.+}`)"
-      - "traefik.http.routers.catchall.entrypoints=web"
-      - "traefik.http.routers.catchall.priority=1"
-      - "traefik.http.routers.catchall.service=runner-info"
     environment:
       - RUNNER={{ runner }}
       - DOMAIN_FULL={{ domain_full }}
@@ -50,9 +49,10 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./runner-info:/app
+      - /opt/bridge-traefik/traefik/dynamic:/etc/traefik/dynamic
     networks:
       - bridge-network
-    command: sh -c "pip install flask docker && python /app/app.py"
+    command: sh -c "pip install flask docker requests pyyaml && python /app/app.py"
     environment:
       - RUNNER={{ runner }}
       - DOMAIN_FULL={{ domain_full }}

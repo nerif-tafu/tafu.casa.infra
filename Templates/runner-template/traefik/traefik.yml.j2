@@ -4,12 +4,6 @@ api:
 entryPoints:
   web:
     address: ":80"
-    # Ensure host-level requests are properly handled
-    # Add proper host mapping for service discovery
-    hostResolver:
-      cnameFlattening: true
-      resolvConfig: "/etc/resolv.conf"
-      resolvDepth: 5
 
 log:
   level: "DEBUG"  # Increase logging for debugging

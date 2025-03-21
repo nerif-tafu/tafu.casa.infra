@@ -5,6 +5,8 @@ import time
 import docker
 import threading
 import socket
+import requests
+import yaml
 from flask import Flask, jsonify, render_template_string
 
 # Configuration
@@ -49,6 +51,28 @@ def get_json():
         "last_updated": last_updated
     }
     return jsonify(runner_info)
+
+def get_container_ip(container_name):
+    """Get the IP address of a container on the bridge network"""
+    try:
+        # Use Docker API to get container details
+        client = docker.from_env()
+        container = client.containers.get(container_name)
+        
+        # Look for the bridge-network IP
+        networks = container.attrs["NetworkSettings"]["Networks"]
+        for network_name, network_config in networks.items():
+            if network_name == "bridge-network":
+                return network_config["IPAddress"]
+        
+        # If no bridge-network IP found, return the first IP
+        if networks:
+            return list(networks.values())[0]["IPAddress"]
+        
+        return None
+    except Exception as e:
+        print(f"Error getting container IP for {container_name}: {e}", flush=True)
+        return None
 
 def discover_services():
     """Discover all services running in Docker with their domains."""
@@ -121,16 +145,121 @@ def discover_services():
     
     return discovered_services
 
+def register_services_with_traefik(services):
+    """Register discovered services with the Traefik REST provider"""
+    try:
+        # Create router configurations for each service
+        dynamic_config = {
+            "http": {
+                "routers": {},
+                "services": {}
+            }
+        }
+        
+        for service in services:
+            service_name = service["name"]
+            service_domain = service["fullDomain"]
+            service_ip = get_container_ip(service["container"])
+            
+            print(f"Container {service['container']} has IP: {service_ip}", flush=True)
+            
+            # Skip if we couldn't get the IP
+            if not service_ip:
+                print(f"Skipping {service_name} - could not get IP", flush=True)
+                continue
+                
+            router_name = f"auto-{service_name}"
+            
+            # Create router for this service
+            dynamic_config["http"]["routers"][router_name] = {
+                "rule": f"Host(`{service_domain}`)",
+                "service": router_name,
+                "entryPoints": ["web"]
+            }
+            
+            # Create service pointing to the container
+            dynamic_config["http"]["services"][router_name] = {
+                "loadBalancer": {
+                    "servers": [{"url": f"http://{service_ip}:80"}]
+                }
+            }
+        
+        # Post to Traefik REST provider
+        traefik_url = "http://172.18.0.2:8080/api/providers/rest"
+        print(f"Sending config to Traefik: {json.dumps(dynamic_config)}", flush=True)
+        response = requests.put(traefik_url, json=dynamic_config)
+        print(f"Traefik API response: {response.status_code} {response.text}", flush=True)
+        
+    except Exception as e:
+        print(f"Error registering services: {e}", flush=True)
+
 def discovery_thread():
     """Background thread that periodically discovers services"""
     global services, last_updated
     while True:
         print("Discovering services...", flush=True)
         discovered = discover_services()
-        services = discovered  # Update the global services variable
+        services = discovered
         last_updated = time.strftime("%Y-%m-%d %H:%M:%S")
         print(f"Found {len(services)} services", flush=True)
+        # Generate dynamic configuration file based on discovered services
+        generate_traefik_config(services)
+        # Register discovered services with Traefik
+        register_services_with_traefik(services)
         time.sleep(REFRESH_INTERVAL)
+
+def generate_traefik_config(services):
+    """Generate Traefik dynamic configuration file from discovered services"""
+    try:
+        # Create base config structure
+        config = {
+            "http": {
+                "routers": {},
+                "services": {}
+            }
+        }
+        
+        # Add a router and service for each discovered service
+        for service in services:
+            name = service["name"]
+            domain = service["fullDomain"]
+            container = service["container"]
+            
+            # Skip containers that aren't running
+            if service["status"] != "running":
+                continue
+            
+            # Get the container IP directly
+            service_ip = get_container_ip(container)
+            if not service_ip:
+                print(f"Skipping {name} - could not get IP", flush=True)
+                continue
+            
+            # Create router for this service
+            router_name = f"auto-{name}"
+            config["http"]["routers"][router_name] = {
+                "rule": f"Host(`{domain}`)",
+                "service": router_name,
+                "entryPoints": ["web"],
+                "priority": 100
+            }
+            
+            # Create service pointing to the container
+            config["http"]["services"][router_name] = {
+                "loadBalancer": {
+                    "servers": [{"url": f"http://{service_ip}:80"}],
+                    "passHostHeader": True
+                }
+            }
+        
+        # Write config to file
+        config_path = "/etc/traefik/dynamic/services-generated.yml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f, default_flow_style=False)
+        print(f"Generated Traefik config with {len(services)} services at {config_path}", flush=True)
+        print(f"Configuration details: {json.dumps(config, indent=2)}", flush=True)
+    except Exception as e:
+        print(f"Error generating Traefik config: {e}", flush=True)
 
 def main():
     # Create templates directory if it doesn't exist

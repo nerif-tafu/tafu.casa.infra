@@ -21,6 +21,12 @@
         state: directory
         mode: '0755'
 
+    - name: Create traefik dynamic config directory
+      file:
+        path: /opt/bridge-traefik/traefik/dynamic
+        state: directory
+        mode: '0755'
+
     - name: Create runner-info directory
       file:
         path: /opt/bridge-traefik/runner-info
@@ -49,6 +55,12 @@
       copy:
         src: runner-info/index.html
         dest: /opt/bridge-traefik/runner-info/index.html
+        mode: '0644'
+
+    - name: Copy traefik dynamic config
+      template:
+        src: traefik/dynamic/services.yml.j2
+        dest: /opt/bridge-traefik/traefik/dynamic/services.yml
         mode: '0644'
 
     - name: Check if bridge network exists
