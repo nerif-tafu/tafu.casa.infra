@@ -185,13 +185,28 @@ def register_services_with_traefik(services):
             }
         
         # Post to Traefik REST provider
-        traefik_url = "http://172.18.0.2:8080/api/providers/rest"
+        traefik_url = "http://traefik:8080/api/providers/rest"
         print(f"Sending config to Traefik: {json.dumps(dynamic_config)}", flush=True)
         response = requests.put(traefik_url, json=dynamic_config)
         print(f"Traefik API response: {response.status_code} {response.text}", flush=True)
         
     except Exception as e:
         print(f"Error registering services: {e}", flush=True)
+
+def check_traefik_status():
+    """Check Traefik status and available routers/services"""
+    try:
+        # Try to get Traefik API status
+        response = requests.get("http://traefik:8080/api/http/routers")
+        if response.status_code == 200:
+            routers = response.json()
+            print(f"Traefik has {len(routers)} routers configured", flush=True)
+            for router in routers:
+                print(f"Router: {router['name']}, Rule: {router['rule']}", flush=True)
+        else:
+            print(f"Could not get Traefik routers: {response.status_code}", flush=True)
+    except Exception as e:
+        print(f"Error checking Traefik status: {e}", flush=True)
 
 def discovery_thread():
     """Background thread that periodically discovers services"""
@@ -206,6 +221,8 @@ def discovery_thread():
         generate_traefik_config(services)
         # Register discovered services with Traefik
         register_services_with_traefik(services)
+        # Check Traefik status for debugging
+        check_traefik_status()
         time.sleep(REFRESH_INTERVAL)
 
 def generate_traefik_config(services):

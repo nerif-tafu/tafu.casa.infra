@@ -70,4 +70,11 @@
       
     - name: Show success message
       debug:
-        msg: "Successfully undeployed service {{ service_name }}. The registry has been refreshed to remove routes." 
+        msg: "Successfully undeployed service {{ service_name }}. The registry has been refreshed to remove routes."
+
+    - name: Get runner IP address
+      uri:
+        url: "http://localhost/runner-info/json"
+        method: GET
+      register: runner_info_response
+      ignore_errors: yes 
