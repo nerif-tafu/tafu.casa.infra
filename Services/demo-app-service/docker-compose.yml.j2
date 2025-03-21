@@ -2,24 +2,24 @@ version: '3.8'
 
 services:
   frontend:
-    container_name: "{{ service_number }}-demo-app-service-frontend"
+    container_name: "{{ service_name }}-frontend"
     build: ./frontend
     labels:
       - "traefik.enable=true"
       # Only accessible through service traefik, not bridge traefik
-      - "traefik.http.routers.frontend-{{ service_number }}.rule=Host(`frontend-{{ service_number }}.internal`)"
-      - "traefik.http.services.frontend-{{ service_number }}.loadbalancer.server.port=9000"
+      - "traefik.http.routers.frontend-{{ service_name }}.rule=Host(`frontend.internal`)"
+      - "traefik.http.services.frontend-{{ service_name }}.loadbalancer.server.port=9000"
     networks:
       - web  # Only internal network, not bridge-network
 
   backend:
-    container_name: "{{ service_number }}-demo-app-service-backend"
+    container_name: "{{ service_name }}-backend"
     build: ./backend
     labels:
       - "traefik.enable=true"
       # Only accessible through service traefik, not bridge traefik
-      - "traefik.http.routers.backend-{{ service_number }}.rule=Host(`backend-{{ service_number }}.internal`)"
-      - "traefik.http.services.backend-{{ service_number }}.loadbalancer.server.port=9001"
+      - "traefik.http.routers.backend-{{ service_name }}.rule=Host(`backend-{{ service_name }}.internal`)"
+      - "traefik.http.services.backend-{{ service_name }}.loadbalancer.server.port=9001"
     networks:
       - web  # Only internal network, not bridge-network
 
@@ -44,20 +44,20 @@ services:
       - "com.runner.service.type=entry-point"
       # Traefik routing labels
       - "traefik.enable=true"
-      - "traefik.http.routers.demo-app-{{ service_number }}.rule=Host(`{{ service_name }}.{{ domain_full }}`)"
+      - "traefik.http.routers.demo-app.rule=Host(`{{ service_name }}.{{ domain_full }}`)"
       # Add service binding to connect Host rule with endpoints
-      - "traefik.http.routers.demo-app-{{ service_number }}.entrypoints=web"
-      - "traefik.http.routers.demo-app-{{ service_number }}.service=frontend"
+      - "traefik.http.routers.demo-app.entrypoints=web"
+      - "traefik.http.routers.demo-app.service=frontend"
       # Add another router for API paths
-      - "traefik.http.routers.demo-app-{{ service_number }}-api.rule=Host(`{{ service_name }}.{{ domain_full }}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.demo-app-{{ service_number }}-api.entrypoints=web"
-      - "traefik.http.routers.demo-app-{{ service_number }}-api.service=backend"
-      - "traefik.http.routers.demo-app-{{ service_number }}-api.priority=100"
+      - "traefik.http.routers.demo-app-api.rule=Host(`{{ service_name }}.{{ domain_full }}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.demo-app-api.entrypoints=web"
+      - "traefik.http.routers.demo-app-api.service=backend"
+      - "traefik.http.routers.demo-app-api.priority=100"
       # Debug label to see what domain_full resolves to
       - "com.debug.domain_full={{ domain_full }}"
       - "com.debug.service_name={{ service_name }}"
       - "com.debug.runner={{ runner }}"
-      - "traefik.http.services.demo-app-{{ service_number }}.loadbalancer.server.port=80"
+      - "traefik.http.services.demo-app.loadbalancer.server.port=80"
       - "traefik.docker.network=bridge-network"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -68,7 +68,7 @@ services:
       - bridge-network  # For external access from bridge traefik
 networks:
   web:
-    name: web-{{ service_number }}
+    name: web-{{ service_name | regex_replace('[^a-zA-Z0-9]', '-') }}
     driver: bridge
     internal: true  # This network is not accessible from outside
   bridge-network:

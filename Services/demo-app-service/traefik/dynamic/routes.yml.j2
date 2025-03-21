@@ -19,9 +19,9 @@ http:
     frontend:
       loadBalancer:
         servers:
-          - url: "http://{{ service_number }}-demo-app-service-frontend:9000"
+          - url: "http://{{ service_name }}-frontend:9000"
     
     backend:
       loadBalancer:
         servers:
-          - url: "http://{{ service_number }}-demo-app-service-backend:9001" 
+          - url: "http://{{ service_name }}-backend:9001" 

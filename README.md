@@ -55,9 +55,9 @@ ansible-playbook -i localhost, Bases/lxd-vm-base/bootstrap.yml
 ansible-playbook -i 192.168.3.225, Templates/core-template/deploy.yml
 
 ansible-playbook -i 192.168.3.215, Templates/runner-template/deploy.yml
-ansible-playbook -i 192.168.3.215, Services/demo-app-service/deploy.yml -e "service_number=1"
-ansible-playbook -i 192.168.3.215, Services/demo-app-service/deploy.yml -e "service_number=2"
+ansible-playbook -i 192.168.3.215, Services/demo-app-service/deploy.yml -e "service_name=demo-app-service-1"
+ansible-playbook -i 192.168.3.215, Services/demo-app-service/deploy.yml -e "service_name=demo-app-service-2"
 
 ansible-playbook -i 192.168.3.226, -e "runner=staging" Templates/runner-template/deploy.yml
-ansible-playbook -i 192.168.3.226, Services/demo-app-service/deploy.yml -e "service_number=1"
-ansible-playbook -i 192.168.3.226, Services/demo-app-service/deploy.yml -e "service_number=2"
+ansible-playbook -i 192.168.3.226, Services/demo-app-service/deploy.yml -e "service_name=demo-app-service-1"
+ansible-playbook -i 192.168.3.226, Services/demo-app-service/deploy.yml -e "service_name=demo-app-service-2"
