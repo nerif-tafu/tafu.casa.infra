@@ -37,6 +37,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./traefik/dynamic:/output
+      - registry_data:/app/data
     restart: unless-stopped
     networks:
       - traefik-public
@@ -46,6 +47,9 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.registry-dashboard.rule=Host(`registry.${DOMAIN_BASE:-preview.tafu.casa}`)"
       - "traefik.http.services.registry-dashboard.loadbalancer.server.port=5000"
+
+volumes:
+  registry_data:
 
 networks:
   traefik-public:

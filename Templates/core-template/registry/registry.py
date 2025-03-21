@@ -5,19 +5,26 @@ import time
 import os
 import yaml
 import threading
-from flask import Flask, jsonify, render_template
+import uuid
+from flask import Flask, jsonify, render_template, request, redirect, url_for
 from flask_socketio import SocketIO
 
 # Read domain from environment or use default
 DOMAIN_BASE = os.environ.get('DOMAIN_BASE', 'preview.tafu.casa')
 
-RUNNER_IPS = [
-    "192.168.3.215",  # Default runner
-    "192.168.3.226"   # Staging runner
-]
-RUNNER_INFO_PATH = "/runner-info/json"  # Path to append to IP
+# File to store endpoints
+ENDPOINTS_FILE = "/app/data/endpoints.json"
 OUTPUT_DIR = "/output"
 POLLING_INTERVAL = 30  # seconds
+
+# Ensure data directory exists
+os.makedirs(os.path.dirname(ENDPOINTS_FILE), exist_ok=True)
+
+# Default endpoints if file doesn't exist
+DEFAULT_ENDPOINTS = [
+    {"id": str(uuid.uuid4()), "ip": "192.168.3.215", "description": "Default runner"},
+    {"id": str(uuid.uuid4()), "ip": "192.168.3.226", "description": "Staging runner"}
+]
 
 # Global state
 discovered_runners = []
@@ -26,20 +33,111 @@ last_updated = None
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# Load endpoints from file or use defaults
+def load_endpoints():
+    try:
+        if os.path.exists(ENDPOINTS_FILE):
+            with open(ENDPOINTS_FILE, 'r') as f:
+                return json.load(f)
+        else:
+            # Create file with defaults
+            save_endpoints(DEFAULT_ENDPOINTS)
+            return DEFAULT_ENDPOINTS
+    except Exception as e:
+        print(f"Error loading endpoints: {e}")
+        return DEFAULT_ENDPOINTS
+
+# Save endpoints to file
+def save_endpoints(endpoints):
+    try:
+        os.makedirs(os.path.dirname(ENDPOINTS_FILE), exist_ok=True)
+        with open(ENDPOINTS_FILE, 'w') as f:
+            json.dump(endpoints, f, indent=2)
+    except Exception as e:
+        print(f"Error saving endpoints: {e}")
+
 @app.route('/')
 def index():
+    endpoints = load_endpoints()
     return render_template('index.html', 
                            runners=discovered_runners, 
                            last_updated=last_updated,
-                           endpoints=[f"http://{ip}{RUNNER_INFO_PATH}" for ip in RUNNER_IPS])
+                           endpoints=endpoints)
+
+@app.route('/endpoints')
+def endpoints_page():
+    endpoints = load_endpoints()
+    return render_template('endpoints.html', endpoints=endpoints)
+
+@app.route('/endpoints/add', methods=['POST'])
+def add_endpoint():
+    ip = request.form.get('ip', '').strip()
+    description = request.form.get('description', '').strip()
+    
+    if not ip:
+        return jsonify({"status": "error", "message": "IP address is required"}), 400
+    
+    endpoints = load_endpoints()
+    endpoints.append({
+        "id": str(uuid.uuid4()),
+        "ip": ip,
+        "description": description
+    })
+    
+    save_endpoints(endpoints)
+    socketio.emit('endpoints_updated')
+    
+    # Trigger an immediate refresh of runner discovery
+    threading.Thread(target=lambda: refresh_config()).start()
+    
+    return redirect('/endpoints')
+
+@app.route('/endpoints/delete/<endpoint_id>', methods=['POST'])
+def delete_endpoint(endpoint_id):
+    endpoints = load_endpoints()
+    endpoints = [e for e in endpoints if e.get('id') != endpoint_id]
+    save_endpoints(endpoints)
+    socketio.emit('endpoints_updated')
+    
+    # Trigger an immediate refresh of runner discovery
+    threading.Thread(target=lambda: refresh_config()).start()
+    
+    return redirect('/endpoints')
+
+@app.route('/endpoints/edit/<endpoint_id>', methods=['POST'])
+def edit_endpoint(endpoint_id):
+    ip = request.form.get('ip', '').strip()
+    description = request.form.get('description', '').strip()
+    
+    if not ip:
+        return jsonify({"status": "error", "message": "IP address is required"}), 400
+    
+    endpoints = load_endpoints()
+    for endpoint in endpoints:
+        if endpoint.get('id') == endpoint_id:
+            endpoint['ip'] = ip
+            endpoint['description'] = description
+            break
+    
+    save_endpoints(endpoints)
+    socketio.emit('endpoints_updated')
+    
+    # Trigger an immediate refresh of runner discovery
+    threading.Thread(target=lambda: refresh_config()).start()
+    
+    return redirect('/endpoints')
 
 @app.route('/api/runners')
 def api_runners():
     return jsonify({
         "runners": discovered_runners,
         "last_updated": last_updated,
-        "endpoints": [f"http://{ip}{RUNNER_INFO_PATH}" for ip in RUNNER_IPS]
+        "endpoints": [e['ip'] for e in load_endpoints()]
     })
+
+@app.route('/api/endpoints')
+def api_endpoints():
+    return jsonify(load_endpoints())
 
 @app.route('/api/refresh', methods=['GET', 'POST'])
 def refresh_config():
@@ -67,34 +165,38 @@ def discover_runners():
     global discovered_runners, last_updated
     runners = []
     
-    for ip in RUNNER_IPS:
-        endpoint = f"http://{ip}{RUNNER_INFO_PATH}"
+    endpoints = load_endpoints()
+    
+    for endpoint in endpoints:
+        ip = endpoint['ip']
+        endpoint_url = f"http://{ip}/runner-info/json"
         try:
-            print(f"Trying to connect to {endpoint}...")
-            response = requests.get(endpoint, timeout=5)
-            print(f"Response from {endpoint}: status={response.status_code}")
+            print(f"Trying to connect to {endpoint_url}...")
+            response = requests.get(endpoint_url, timeout=5)
+            print(f"Response from {endpoint_url}: status={response.status_code}")
             
             if response.status_code == 200:
                 try:
-                    print(f"Content from {endpoint}: {response.text[:200]}...")
+                    print(f"Content from {endpoint_url}: {response.text[:200]}...")
                     runner_data = response.json()
                     
                     # Add the IP to the runner data
                     runner_data['ip'] = ip
                     
                     runners.append(runner_data)
-                    print(f"Successfully parsed JSON from {endpoint}")
+                    print(f"Successfully parsed JSON from {endpoint_url}")
                 except json.JSONDecodeError as e:
-                    print(f"Error parsing JSON from {endpoint}: {e}")
+                    print(f"Error parsing JSON from {endpoint_url}: {e}")
                     print(f"Raw content: {response.text}")
             else:
-                print(f"Error polling {endpoint}: HTTP {response.status_code}")
+                print(f"Error polling {endpoint_url}: HTTP {response.status_code}")
         except Exception as e:
-            print(f"Error connecting to {endpoint}: {e}")
+            print(f"Error connecting to {endpoint_url}: {e}")
     
     # Update global state
     discovered_runners = runners
     last_updated = time.strftime("%Y-%m-%d %H:%M:%S")
+    
     return runners
 
 def generate_config(runners):
@@ -163,188 +265,8 @@ def discovery_thread():
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    # Create templates directory with absolute path
-    template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
-    os.makedirs(template_dir, exist_ok=True)
-    
-    # Create HTML template - now with WebSocket support
-    template_path = os.path.join(template_dir, 'index.html')
-    if not os.path.exists(template_path) or True:  # Always update the template
-        with open(template_path, 'w') as f:
-            f.write("""
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Registry Dashboard</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h1, h2, h3 {
-            color: #333;
-        }
-        .runner-card {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 15px;
-            margin-bottom: 15px;
-            background-color: #fff;
-        }
-        .service-list {
-            margin-top: 10px;
-        }
-        .service-item {
-            background-color: #f8f9fa;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 5px;
-        }
-        .endpoint-list {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #f0f0f0;
-            border-radius: 4px;
-        }
-        .status {
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            display: inline-block;
-        }
-        .status-success {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .status-error {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        .refresh-btn {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .refresh-btn:hover {
-            background-color: #0069d9;
-        }
-        .last-updated {
-            color: #6c757d;
-            font-style: italic;
-            margin-bottom: 20px;
-        }
-        /* Add new notification style */
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background-color: #4CAF50;
-            color: white;
-            padding: 16px;
-            border-radius: 4px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 1000;
-        }
-        
-        .notification.show {
-            opacity: 1;
-        }
-    </style>
-    <!-- Add Socket.IO client library -->
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-</head>
-<body>
-    <div class="container">
-        <h1>Traefik Registry Dashboard</h1>
-        
-        <div class="last-updated">
-            Last updated: <span id="last-updated">{{ last_updated or 'Never' }}</span>
-            <button class="refresh-btn" onclick="window.location.reload()">Refresh</button>
-        </div>
-        
-        <h2>Monitored Endpoints</h2>
-        <div class="endpoint-list">
-            {% for endpoint in endpoints %}
-                <div>{{ endpoint }}</div>
-            {% endfor %}
-        </div>
-        
-        <h2>Discovered Runners ({{ runners|length }})</h2>
-        
-        {% if runners %}
-            {% for runner in runners %}
-                <div class="runner-card">
-                    <h3>
-                        {{ runner.runner }} 
-                        <span class="status status-success">Active</span>
-                    </h3>
-                    <div><strong>Domain:</strong> {{ runner.domain }}</div>
-                    <div><strong>IP:</strong> {{ runner.ip }}</div>
-                    
-                    <div class="service-list">
-                        <h4>Services</h4>
-                        {% if runner.services %}
-                            {% for service in runner.services %}
-                                <div class="service-item">
-                                    <div><strong>{{ service.name }}</strong></div>
-                                    <div>Full Domain: {{ service.fullDomain }}</div>
-                                </div>
-                            {% endfor %}
-                        {% else %}
-                            <p>No services found.</p>
-                        {% endif %}
-                    </div>
-                </div>
-            {% endfor %}
-        {% else %}
-            <p>No runners discovered yet.</p>
-        {% endif %}
-    </div>
-    
-    <!-- Notification element -->
-    <div id="notification" class="notification">Configuration updated! Refreshing...</div>
-    
-    <script>
-        // Connect to WebSocket server
-        const socket = io();
-        
-        // Listen for configuration updates
-        socket.on('config_updated', function(data) {
-            console.log('Configuration updated:', data);
-            
-            // Show notification
-            const notification = document.getElementById('notification');
-            notification.textContent = `Configuration updated at ${data.timestamp}! Refreshing...`;
-            notification.classList.add('show');
-            
-            // Update last-updated time without refreshing
-            document.getElementById('last-updated').textContent = data.timestamp;
-            
-            // Auto-refresh after a short delay
-            setTimeout(function() {
-                window.location.reload();
-            }, 2000);
-        });
-    </script>
-</body>
-</html>
-            """)
+    # Don't generate templates dynamically
+    # Just use the external templates provided
     
     # Start discovery in a background thread
     t = threading.Thread(target=discovery_thread, daemon=True)

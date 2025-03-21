@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Registry Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2, h3 { color: #333; }
+        .runner-card { border: 1px solid #ddd; border-radius: 4px; padding: 15px; margin-bottom: 15px; background-color: #fff; }
+        .service-list { margin-top: 10px; }
+        .service-item { background-color: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 5px; }
+        .endpoint-list { margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 4px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .button { display: inline-block; padding: 8px 16px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; }
+        .refresh-btn { background-color: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        .manage-endpoints-btn { background-color: #6c757d; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; margin-left: 10px; }
+        .service-link { color: #007bff; text-decoration: none; font-weight: bold; }
+        .service-link:hover { text-decoration: underline; }
+        .domain-badge { display: inline-block; padding: 3px 10px; background-color: #e9ecef; border-radius: 12px; margin-right: 5px; font-size: 0.9em; }
+        .actions { margin-top: 8px; display: flex; gap: 10px; }
+        #error { color: red; display: none; }
+        #loading { text-align: center; padding: 20px; }
+        .notification { position: fixed; top: 20px; right: 20px; background-color: #28a745; color: white; padding: 15px; border-radius: 4px; opacity: 0; transition: opacity 0.3s; z-index: 1000; }
+        .notification.show { opacity: 1; }
+    </style>
+    <!-- Add Socket.IO client library -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Traefik Registry Dashboard</h1>
+            <div>
+                <button class="refresh-btn" onclick="window.location.reload()">Refresh</button>
+                <a href="/endpoints" class="manage-endpoints-btn">Manage Endpoints</a>
+            </div>
+        </div>
+        
+        <div class="last-updated">
+            Last updated: <span id="last-updated">{{ last_updated or 'Never' }}</span>
+        </div>
+        
+        <h2>Monitored Endpoints</h2>
+        <div class="endpoint-list">
+            {% for endpoint in endpoints %}
+                <div>{{ endpoint.ip }} - {{ endpoint.description }}</div>
+            {% endfor %}
+        </div>
+        
+        <h2>Discovered Runners ({{ runners|length }})</h2>
+        
+        {% if runners %}
+            {% for runner in runners %}
+                <div class="runner-card">
+                    <h3>
+                        {{ runner.runner }} 
+                        <span class="status status-success">Active</span>
+                    </h3>
+                    <div><strong>Domain:</strong> {{ runner.domain }}</div>
+                    <div><strong>IP:</strong> {{ runner.ip }}</div>
+                    
+                    <div class="service-list">
+                        <h4>Services</h4>
+                        {% if runner.services %}
+                            {% for service in runner.services %}
+                                <div class="service-item">
+                                    <div><strong>{{ service.name }}</strong></div>
+                                    <div>
+                                        <span class="domain-badge">HTTP</span>
+                                        <a href="http://{{ service.fullDomain }}" target="_blank" class="service-link">{{ service.fullDomain }}</a>
+                                    </div>
+                                    <div>
+                                        <span class="domain-badge">HTTPS</span>
+                                        <a href="https://{{ service.fullDomain }}" target="_blank" class="service-link">{{ service.fullDomain }}</a>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p>No services found.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No runners discovered yet.</p>
+        {% endif %}
+    </div>
+    
+    <!-- Notification element -->
+    <div id="notification" class="notification">Configuration updated! Refreshing...</div>
+    
+    <script>
+        // Connect to WebSocket server
+        const socket = io();
+        
+        // Listen for configuration updates
+        socket.on('config_updated', function(data) {
+            console.log('Configuration updated:', data);
+            
+            // Show notification
+            const notification = document.getElementById('notification');
+            notification.textContent = `Configuration updated at ${data.timestamp}! Refreshing...`;
+            notification.classList.add('show');
+            
+            // Update last-updated time without refreshing
+            document.getElementById('last-updated').textContent = data.timestamp;
+            
+            // Auto-refresh after a short delay
+            setTimeout(function() {
+                window.location.reload();
+            }, 2000);
+        });
+    </script>
+</body>
+</html> 

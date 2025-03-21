@@ -46,6 +46,7 @@
         src: registry/
         dest: /opt/core-traefik/registry/
         mode: '0644'
+      register: registry_files_changed
 
     - name: Make registry.py executable
       file:
@@ -75,4 +76,26 @@
     - name: Create environment file
       copy:
         content: "DOMAIN_BASE={{ domain_base }}"
-        dest: /opt/core-traefik/.env 
+        dest: /opt/core-traefik/.env
+
+    - name: Build registry image
+      shell: |
+        cd /opt/core-traefik
+        docker compose build {% if build_registry is defined and build_registry %}--no-cache{% endif %} registry
+      when: registry_files_changed.changed
+
+    - name: Create registry templates directory
+      file:
+        path: /opt/core-traefik/registry/templates
+        state: directory
+        mode: '0755'
+
+    - name: Copy registry HTML templates
+      copy:
+        src: "registry/templates/{{ item }}"
+        dest: "/opt/core-traefik/registry/templates/{{ item }}"
+        mode: '0644'
+      with_items:
+        - index.html
+        - endpoints.html
+      register: template_files_changed 
