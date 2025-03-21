@@ -51,68 +51,68 @@ def get_json():
     return jsonify(runner_info)
 
 def discover_services():
-    """Discover running services on this runner"""
-    global services, last_updated
-    client = docker.from_env()
+    """Discover all services running in Docker with their domains."""
+    discovered_services = []
     
     try:
-        all_containers = client.containers.list()
-        discovered_services = []
+        client = docker.from_env()
+        containers = client.containers.list()
         
-        for container in all_containers:
-            # Skip our own containers
-            if 'bridge-traefik' in container.name or 'runner-info' in container.name:
-                continue
-                
-            # Get container labels
+        # Filter for entry point containers using explicit labels
+        for container in containers:
             labels = container.labels
             
-            # Process containers to extract service info
-            name = container.name
-            # Clean up the name by removing common suffixes
-            for suffix in ['-1', '-traefik', '-frontend', '-backend']:
-                if name.endswith(suffix):
-                    name = name.replace(suffix, '')
-            
-            # Get the service domain from labels if available, otherwise construct it
-            domain = f"{name}.{DOMAIN_FULL}"
-            if 'traefik.http.routers' in str(labels):
-                # Try to extract domain from traefik labels
-                for label, value in labels.items():
-                    if 'rule' in label and 'Host' in value:
-                        try:
-                            # Extract domain from Host rule
-                            domain_part = value.split('Host(`')[1].split('`)')[0]
-                            if domain_part:
-                                domain = domain_part
+            # Look for our service entry-point label
+            if 'com.runner.service.name' in labels and 'com.runner.service.type' in labels:
+                if labels['com.runner.service.type'] == 'entry-point':
+                    service_name = labels['com.runner.service.name']
+                    
+                    # Get routing rule from traefik labels if available
+                    domain = None
+                    for label, value in labels.items():
+                        if 'rule' in label and 'Host(' in value:
+                            try:
+                                # Extract domain from Host rule
+                                domain = value.split('Host(`')[1].split('`)')[0]
                                 break
-                        except:
-                            pass
-            
-            service_info = {
-                "name": name,
-                "fullDomain": domain,
-                "container": container.name,
-                "status": container.status
-            }
-            
-            # Only add if we haven't already added this service
-            if not any(s['name'] == name for s in discovered_services):
-                discovered_services.append(service_info)
+                            except:
+                                pass
+                    
+                    # Fallback to constructed domain if not found in labels
+                    if not domain:
+                        runner = os.environ.get('RUNNER', '')
+                        domain_base = os.environ.get('DOMAIN_FULL', 'preview.tafu.casa')
+                        if runner:
+                            domain = f"{service_name}.{runner}.{domain_base}"
+                        else:
+                            domain = f"{service_name}.{domain_base}"
+                        domain = domain.replace("..", ".")
+                    
+                    # Add service to discovered list
+                    discovered_services.append({
+                        "name": service_name,
+                        "container": container.name,
+                        "fullDomain": domain,
+                        "status": container.status
+                    })
         
-        # Update global state
-        services = discovered_services
-        last_updated = time.strftime("%Y-%m-%d %H:%M:%S")
+        # Sort services by name for consistent display
+        discovered_services.sort(key=lambda x: x["name"])
         
     except Exception as e:
-        print(f"Error discovering services: {e}")
+        print(f"Error discovering services: {e}", flush=True)
+    
+    return discovered_services
 
 def discovery_thread():
     """Background thread that periodically discovers services"""
+    global services, last_updated
     while True:
-        print("Discovering services...")
-        discover_services()
-        print(f"Found {len(services)} services")
+        print("Discovering services...", flush=True)
+        discovered = discover_services()
+        services = discovered  # Update the global services variable
+        last_updated = time.strftime("%Y-%m-%d %H:%M:%S")
+        print(f"Found {len(services)} services", flush=True)
         time.sleep(REFRESH_INTERVAL)
 
 def main():

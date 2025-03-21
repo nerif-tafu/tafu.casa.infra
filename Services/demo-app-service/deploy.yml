@@ -30,6 +30,11 @@
         runner_json: "{{ runner_info_result.content | from_json }}"
       when: runner_info_available
 
+    - name: Debug runner-info response
+      debug:
+        var: runner_json
+      when: runner_info_available
+
     - name: Set runner variables
       set_fact:
         runner: "{{ runner_json.runner }}"
@@ -47,6 +52,10 @@
       debug:
         msg: "Deploying to runner: {{ runner | default('default') }}"
 
+    - name: Display service URL
+      debug:
+        msg: "Service will be accessible at: http://{{ service_name }}.{{ domain_full }}"
+
     - name: Create service directories
       file:
         path: "{{ item }}"
@@ -55,6 +64,7 @@
       with_items:
         - "/opt/{{ service_name }}"
         - "/opt/{{ service_name }}/traefik"
+        - "/opt/{{ service_name }}/traefik/dynamic"
         - "/opt/{{ service_name }}/frontend"
         - "/opt/{{ service_name }}/backend"
 
@@ -91,18 +101,20 @@
         mode: '0644'
         # Pass all variables including runner
 
-    - name: Copy traefik config
-      copy:
-        src: traefik/traefik.yml
-        dest: "/opt/{{ service_name }}/traefik/traefik.yml"
+    - name: Copy traefik dynamic config template
+      template:
+        src: traefik/dynamic/routes.yml.j2
+        dest: "/opt/{{ service_name }}/traefik/dynamic/routes.yml"
         mode: '0644'
-
-    - name: Deploy with Docker Compose (with rebuild)
+        
+    - name: Deploy with thorough cleanup
       shell: |
         cd /opt/{{ service_name }}
-        docker compose down --remove-orphans
-        docker compose build --no-cache  # Force rebuild of images
-        docker compose up -d 
+        docker compose down --remove-orphans --volumes
+        docker compose rm -f
+        docker system prune -f --volumes --filter "label=com.runner.service.name={{ service_name }}"
+        docker compose build --no-cache --pull
+        docker compose up -d
 
     - name: Trigger registry refresh
       uri:

@@ -1,0 +1,27 @@
+# Dynamic configuration for HTTP routes
+http:
+  routers:
+    catchall:
+      rule: "Host(`{{ service_name }}.{{ domain_full }}`) && PathPrefix(`/`)"
+      service: "frontend"
+      entryPoints:
+        - "web"
+      priority: 1
+    
+    api:
+      rule: "Host(`{{ service_name }}.{{ domain_full }}`) && PathPrefix(`/api`)"
+      service: "backend"
+      entryPoints:
+        - "web"
+      priority: 10
+  
+  services:
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ service_number }}-demo-app-service-frontend:9000"
+    
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ service_number }}-demo-app-service-backend:9001" 
