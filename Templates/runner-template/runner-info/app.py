@@ -78,22 +78,39 @@ def discover_services():
                             except:
                                 pass
                     
-                    # Fallback to constructed domain if not found in labels
-                    if not domain:
+                    # Check if we found domain in labels
+                    if domain:
+                        # If domain already contains the service name, don't duplicate it
+                        if domain.startswith(f"{service_name}."):
+                            full_domain = domain
+                        else:
+                            full_domain = f"{service_name}.{domain}"
+                    else:
+                        # Fallback to constructed domain if not found in labels
                         runner = os.environ.get('RUNNER', '')
                         domain_base = os.environ.get('DOMAIN_FULL', 'preview.tafu.casa')
                         if runner:
-                            domain = f"{service_name}.{runner}.{domain_base}"
+                            domain = f"{runner}.{domain_base}"
                         else:
-                            domain = f"{service_name}.{domain_base}"
+                            domain = domain_base
                         domain = domain.replace("..", ".")
+                        full_domain = f"{service_name}.{domain}"
+                    
+                    # Make sure the Host rule in bridge traefik includes the complete domain
+                    router_rule = f"Host(`{full_domain}`)"
                     
                     # Add service to discovered list
                     discovered_services.append({
                         "name": service_name,
                         "container": container.name,
-                        "fullDomain": domain,
-                        "status": container.status
+                        "fullDomain": full_domain,
+                        "status": container.status,
+                        "routerRule": router_rule,
+                        "debug": {
+                            "labels": {key: value for key, value in labels.items() if "traefik" in key},
+                            "originalDomain": domain,
+                            "networks": [net for net in container.attrs["NetworkSettings"]["Networks"]]
+                        }
                     })
         
         # Sort services by name for consistent display

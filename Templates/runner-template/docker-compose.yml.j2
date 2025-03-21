@@ -28,6 +28,13 @@ services:
       - "traefik.http.services.bridge-traefik.loadbalancer.server.port=80"
       - "com.runner.subdomain={{ runner }}"
       - "com.runner.domain={{ domain_full }}"
+      # Make sure traefik can route multi-level subdomains
+      - "traefik.http.middlewares.strip-service-prefix.stripprefix.prefixes=/"
+      # Match any domain pattern with service name as first subdomain
+      - "traefik.http.routers.services.rule=HostRegexp(`{service:[a-z0-9-]+}.{{ domain_full }}`)"
+      - "traefik.http.routers.services.service={service}"
+      - "traefik.http.routers.services.entrypoints=web"
+      - "traefik.http.routers.services.priority=100"
     environment:
       - RUNNER={{ runner }}
       - DOMAIN_FULL={{ domain_full }}
