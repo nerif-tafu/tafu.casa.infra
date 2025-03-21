@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Service Details: {{ service.name }}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .breadcrumb {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+        
+        .breadcrumb a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        
+        .service-detail-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .card-header h2 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .card-body {
+            padding: 20px;
+        }
+        
+        .status {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .status-running {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-stopped {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .info-section {
+            margin-bottom: 30px;
+        }
+        
+        .info-section h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            color: #444;
+        }
+        
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .info-table th, .info-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-table th {
+            width: 30%;
+            color: #666;
+        }
+        
+        .network-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        
+        .network-list li {
+            padding: 8px 12px;
+            background: #f9f9f9;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        
+        .label-container {
+            background: #f9f9f9;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        
+        .label-item {
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        
+        .label-key {
+            font-weight: bold;
+            color: #444;
+        }
+        
+        .error-message {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 5px solid #ffeeba;
+        }
+        
+        .button {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="{{ url_for('index') }}">Home</a> &gt; 
+            {% if runner != 'default' %}<span>{{ runner }}</span> &gt; {% endif %}
+            <span>{{ service.name }}</span>
+        </div>
+
+        <div class="service-detail-card">
+            <div class="card-header">
+                <h2>{{ service.name }}</h2>
+                {% if service.status %}
+                <span class="status status-{{ service.status }}">{{ service.status }}</span>
+                {% endif %}
+            </div>
+            
+            <div class="card-body">
+                {% if service.error %}
+                <div class="error-message">
+                    <p>{{ service.error }}</p>
+                </div>
+                {% else %}
+                <div class="service-info">
+                    <div class="info-section">
+                        <h3>Basic Information</h3>
+                        <table class="info-table">
+                            <tr>
+                                <th>Name:</th>
+                                <td>{{ service.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>Container:</th>
+                                <td>{{ service.container }}</td>
+                            </tr>
+                            <tr>
+                                <th>Domain:</th>
+                                <td><a href="http://{{ service.fullDomain }}" target="_blank">{{ service.fullDomain }}</a></td>
+                            </tr>
+                            <tr>
+                                <th>Status:</th>
+                                <td>{{ service.status }}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    {% if service.debug %}
+                    <div class="info-section">
+                        <h3>Container Networks</h3>
+                        <ul class="network-list">
+                            {% for network in service.debug.networks %}
+                            <li>{{ network }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
+                    <div class="info-section">
+                        <h3>Traefik Labels</h3>
+                        <div class="label-container">
+                            {% for key, value in service.debug.labels.items() %}
+                            <div class="label-item">
+                                <span class="label-key">{{ key }}:</span>
+                                <span class="label-value">{{ value }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <div style="margin-top: 20px;">
+                    <a href="{{ url_for('index') }}" class="button">Back to Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

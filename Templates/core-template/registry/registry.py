@@ -6,7 +6,7 @@ import os
 import yaml
 import threading
 import uuid
-from flask import Flask, jsonify, render_template, request, redirect, url_for
+from flask import Flask, jsonify, render_template, request, redirect, url_for, abort
 from flask_socketio import SocketIO
 
 # Read domain from environment or use default
@@ -58,10 +58,13 @@ def save_endpoints(endpoints):
 
 @app.route('/')
 def index():
+    """Render the main page with runner information"""
+    # Load endpoints to display on the dashboard
     endpoints = load_endpoints()
     return render_template('index.html', 
                            runners=discovered_runners, 
                            last_updated=last_updated,
+                           base_domain=DOMAIN_BASE,
                            endpoints=endpoints)
 
 @app.route('/endpoints')
@@ -160,6 +163,73 @@ def refresh_config():
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "services_count": len(runners)
     })
+
+@app.route('/service/<path:service_path>')
+def service_detail(service_path):
+    """Display detailed information about a specific service"""
+    # Parse runner and service name from the path
+    if '-' in service_path:
+        # Format: runner-service
+        parts = service_path.split('-', 1)  # Split only on first hyphen
+        runner = parts[0]
+        service_name = parts[1]
+    else:
+        # Format: just service name (default runner)
+        runner = 'default'
+        service_name = service_path
+    
+    # Find the runner in our list
+    runner_data = None
+    for r in discovered_runners:
+        # Match default runner with empty runner name
+        if (runner == 'default' and (not r.get('runner') or r.get('runner') == '')) or r.get('runner') == runner:
+            runner_data = r
+            break
+    
+    if not runner_data:
+        abort(404)
+        
+    # Get the runner domain
+    if runner == "default":
+        full_domain = DOMAIN_BASE
+    else:
+        full_domain = f"{runner}.{DOMAIN_BASE}"
+    
+    # Fetch service details from the runner's info API
+    try:
+        runner_info_url = f"http://{full_domain}/runner-info/json"
+        print(f"Fetching service details from: {runner_info_url}")
+        response = requests.get(runner_info_url, timeout=5)
+        if response.status_code == 200:
+            runner_info = response.json()
+            
+            # Find the requested service
+            service_info = None
+            for service in runner_info.get('services', []):
+                if service['name'] == service_name:
+                    service_info = service
+                    break
+            
+            if service_info:
+                print(f"Found service info: {service_info}")
+                return render_template('service_detail.html',
+                                      runner=runner,
+                                      service=service_info,
+                                      runner_info=runner_info)
+        
+        # If we couldn't find the service or runner-info failed
+        print(f"Could not find service {service_name} in runner {runner}")
+        return render_template('service_detail.html',
+                              runner=runner,
+                              service={'name': service_name, 'error': 'Service not found'},
+                              runner_info={'error': 'Could not fetch detailed service information'})
+                               
+    except Exception as e:
+        print(f"Error in service_detail: {e}")
+        return render_template('service_detail.html',
+                              runner=runner,
+                              service={'name': service_name, 'error': str(e)},
+                              runner_info={'error': 'Error fetching runner information'})
 
 def discover_runners():
     global discovered_runners, last_updated

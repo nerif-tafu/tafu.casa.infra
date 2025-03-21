@@ -9,7 +9,7 @@
         .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         h1, h2, h3 { color: #333; }
         .runner-card { border: 1px solid #ddd; border-radius: 4px; padding: 15px; margin-bottom: 15px; background-color: #fff; }
-        .service-list { margin-top: 10px; }
+        .service-list { margin-top: 10px; list-style-type: none; padding-left: 0; }
         .service-item { background-color: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 5px; }
         .endpoint-list { margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 4px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -24,6 +24,14 @@
         #loading { text-align: center; padding: 20px; }
         .notification { position: fixed; top: 20px; right: 20px; background-color: #28a745; color: white; padding: 15px; border-radius: 4px; opacity: 0; transition: opacity 0.3s; z-index: 1000; }
         .notification.show { opacity: 1; }
+        .service-list li a {
+            color: #0066cc;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .service-list li a:hover {
+            text-decoration: underline;
+        }
     </style>
     <!-- Add Socket.IO client library -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
@@ -55,7 +63,7 @@
             {% for runner in runners %}
                 <div class="runner-card">
                     <h3>
-                        {{ runner.runner }} 
+                        {{ runner.runner if runner.runner else "default" }} 
                         <span class="status status-success">Active</span>
                     </h3>
                     <div><strong>Domain:</strong> {{ runner.domain }}</div>
@@ -64,19 +72,11 @@
                     <div class="service-list">
                         <h4>Services</h4>
                         {% if runner.services %}
-                            {% for service in runner.services %}
-                                <div class="service-item">
-                                    <div><strong>{{ service.name }}</strong></div>
-                                    <div>
-                                        <span class="domain-badge">HTTP</span>
-                                        <a href="http://{{ service.fullDomain }}" target="_blank" class="service-link">{{ service.fullDomain }}</a>
-                                    </div>
-                                    <div>
-                                        <span class="domain-badge">HTTPS</span>
-                                        <a href="https://{{ service.fullDomain }}" target="_blank" class="service-link">{{ service.fullDomain }}</a>
-                                    </div>
-                                </div>
-                            {% endfor %}
+                            <ul>
+                                {% for service in runner.services %}
+                                    <li><a href="{{ url_for('service_detail', service_path=(runner.runner + '-' + service.name) if runner.runner else service.name) }}">{{ service.name }}</a></li>
+                                {% endfor %}
+                            </ul>
                         {% else %}
                             <p>No services found.</p>
                         {% endif %}
