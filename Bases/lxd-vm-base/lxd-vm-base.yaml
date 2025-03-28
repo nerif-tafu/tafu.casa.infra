@@ -3,14 +3,49 @@ users:
   - name: finn-rm
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
-    ssh_import_id:
-      - lp:finn-rm
+    groups: [adm, sudo]
 
 package_update: true
 package_upgrade: true
 
 packages:
   - ssh-import-id
+  - openssh-server
   - python3
+
+write_files:
+  - path: /etc/systemd/system/ssh-import.service
+    content: |
+      [Unit]
+      Description=Import SSH keys for finn-rm user
+      After=network-online.target cloud-init.service
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      User=finn-rm
+      ExecStart=/usr/bin/ssh-import-id lp:finn-rm
+      ExecStartPost=/bin/chown -R finn-rm:finn-rm /home/finn-rm/.ssh
+      ExecStartPost=/bin/chmod 700 /home/finn-rm/.ssh
+      ExecStartPost=/bin/chmod 600 /home/finn-rm/.ssh/authorized_keys
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - echo "Starting cloud-init debug" > /root/cloud-init.log
+  - ls -la /etc/systemd/system >> /root/cloud-init.log
+  - systemctl daemon-reload
+  - systemctl enable ssh-import.service
+  - systemctl start ssh-import.service 2>> /root/cloud-init.log
+  - journalctl -u ssh-import >> /root/cloud-init.log
+  - ls -la /home/finn-rm/.ssh >> /root/cloud-init.log
+  - systemctl restart ssh
+  - echo "Finished cloud-init debug" >> /root/cloud-init.log
+
+ssh_pwauth: false
+ssh_deletekeys: true
+ssh_genkeytypes: ['rsa', 'ecdsa', 'ed25519']
 
 final_message: "The system is ready for Ansible configuration, after $UPTIME seconds" 

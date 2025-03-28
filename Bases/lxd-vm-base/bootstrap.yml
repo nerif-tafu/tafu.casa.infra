@@ -108,6 +108,25 @@
       failed_when: false
       changed_when: false
 
+    - name: Check if default storage pool exists
+      shell: "lxc storage list --format csv | grep '^default,'"
+      register: default_pool
+      failed_when: false
+      changed_when: false
+
+    - name: Delete existing default storage pool if exists
+      command: lxc storage delete default
+      when: default_pool.rc == 0
+      failed_when: false
+
+    - name: Create btrfs storage pool
+      command: lxc storage create default btrfs
+      when: default_pool.rc != 0
+      register: storage_create
+      failed_when: 
+        - storage_create.rc != 0 
+        - "'already exists' not in storage_create.stderr"
+
     - name: Initialize LXD
       when: storage_list.rc != 0
       shell: |
@@ -145,6 +164,34 @@
         path: "{{ playbook_dir }}/templates"
         state: directory
         mode: '0755'
+
+    - name: Create cloud-init configuration
+      copy:
+        dest: "{{ playbook_dir }}/lxd-vm-base.yaml"
+        content: |
+          #cloud-config
+          users:
+            - name: finn-rm
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              shell: /bin/bash
+              ssh_import_id: 
+                - lp:finn-rm
+              groups: [adm, sudo]
+
+          package_update: true
+          package_upgrade: true
+
+          packages:
+            - openssh-server
+            - python3
+
+          ssh_pwauth: false
+          ssh_deletekeys: true
+          ssh_genkeytypes: ['rsa', 'ecdsa', 'ed25519']
+
+          runcmd:
+            - systemctl restart ssh
+        mode: '0644'
 
     - name: Create netplan configuration
       copy:

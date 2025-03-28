@@ -21,6 +21,8 @@ ansible-galaxy collection install community.general
 ansible-playbook -i localhost, Bases/lxd-vm-base/bootstrap.yml
 ```
 
+Make sure you then import your private SSH key onto the new bootstraped host.
+
 3. Create VMs using one of these methods:
 
     a. Interactive mode (prompts for all values):
